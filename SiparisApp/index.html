@@ -1,0 +1,1345 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self'; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sipariş">
+<meta name="theme-color" content="#0E6B72">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<title>Sipariş Listesi</title>
+<style>
+/* Layout: one-screen app. Sticky top bar, scrolling content, fixed bottom nav. Order lines are cards; off-list lines carry an amber stripe. */
+:root{
+  --bg:#F2F5F6; --surface:#FFFFFF; --surface-2:#E8EEF0; --fg:#172126; --muted:#5E6E75; --line:#D3DCE0;
+  --accent:#0E6B72; --accent-fg:#FFFFFF; --accent-soft:#D7ECEE;
+  --warn:#8A5A00; --warn-bg:#FFF3D1; --warn-line:#E6BE5E;
+  --danger:#B23830; --danger-bg:#FBE4E2;
+  --ok:#2C7A4B; --ok-bg:#DCF1E3;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --r:10px; --shadow:0 1px 2px rgba(16,32,40,.08);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1719; --surface:#182226; --surface-2:#223034; --fg:#E7EDEF; --muted:#9CACB3; --line:#2E3C42;
+    --accent:#4FB8BE; --accent-fg:#071517; --accent-soft:#173B3E;
+    --warn:#F0C45E; --warn-bg:#352B12; --warn-line:#7A5F1F;
+    --danger:#F19189; --danger-bg:#3D1B18;
+    --ok:#7FD69E; --ok-bg:#153A24;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F1719; --surface:#182226; --surface-2:#223034; --fg:#E7EDEF; --muted:#9CACB3; --line:#2E3C42;
+  --accent:#4FB8BE; --accent-fg:#071517; --accent-soft:#173B3E;
+  --warn:#F0C45E; --warn-bg:#352B12; --warn-line:#7A5F1F;
+  --danger:#F19189; --danger-bg:#3D1B18;
+  --ok:#7FD69E; --ok-bg:#153A24;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:16px/1.4 var(--font);background:var(--bg);color:var(--fg);-webkit-text-size-adjust:100%;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent}
+body.noscroll{overflow:hidden}
+[hidden]{display:none!important}
+#app{height:100%;display:flex;flex-direction:column}
+.view{flex:1;display:flex;flex-direction:column;min-height:0}
+.view-center{justify-content:center;align-items:center;padding:24px 16px;padding-top:calc(24px + env(safe-area-inset-top,0px));overflow-y:auto}
+.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:var(--surface);border-bottom:1px solid var(--line)}
+.topbar h1{font-size:20px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-title{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar-title b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar-title small{font-size:12px;color:var(--muted)}
+.content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 16px;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.bottomnav{display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.bottomnav button{flex:1;background:none;border:0;padding:8px 4px 6px;font:inherit;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.bottomnav button.active{color:var(--accent);font-weight:700}
+.bottomnav .ico{font-size:22px;line-height:1.1}
+h1,h2,h3{text-wrap:balance;margin:0}
+h2{font-size:17px}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.msg{font-size:14px;padding:8px 10px;border-radius:8px}
+.msg.danger{background:var(--danger-bg);color:var(--danger)}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow)}
+.card.plain{box-shadow:none}
+.hint{background:var(--accent-soft);border-radius:var(--r);padding:10px 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.hint.warn{background:var(--warn-bg);color:var(--warn)}
+.hint>div{flex:1;min-width:0}
+.btn{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit;font-weight:600;padding:10px 14px;border-radius:var(--r);min-height:44px;cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.danger{background:var(--danger-bg);border-color:var(--danger);color:var(--danger)}
+.btn.block{width:100%}
+.btn.sm{min-height:36px;padding:6px 10px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:default}
+.iconbtn{appearance:none;border:0;background:none;color:var(--fg);font:inherit;font-size:22px;width:44px;height:44px;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-size:14px;text-decoration:underline;padding:8px;cursor:pointer}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row2{display:flex;gap:8px}
+.row2>*{flex:1;min-width:0}
+.grow{flex:1;min-width:0}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field>span{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+input,select,textarea{font:inherit;font-size:16px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;min-height:44px;width:100%;margin:0}
+textarea{resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=search]{-webkit-appearance:none;appearance:none}
+input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
+.switch{display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer;min-height:44px}
+.switch input{width:22px;height:22px;min-height:0;margin:0;accent-color:var(--accent)}
+.radios{display:flex;gap:16px;flex-wrap:wrap;min-height:44px;align-items:center}
+.radios label{display:flex;align-items:center;gap:6px}
+.radios input{width:20px;height:20px;min-height:0;accent-color:var(--accent)}
+.lockcard{width:100%;max-width:380px;gap:14px;text-align:center}
+.brand{font-size:40px;line-height:1;letter-spacing:-6px;color:var(--accent);font-family:var(--mono);font-weight:700}
+.lockcard form{display:flex;flex-direction:column;gap:10px}
+.lockcard input{text-align:center;font-size:24px;letter-spacing:.3em}
+.addbar{display:flex;gap:8px;align-items:flex-start}
+.search-wrap{position:relative;flex:1;min-width:0}
+.suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:46vh;overflow:auto}
+.sug{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font:inherit;color:var(--fg);cursor:pointer}
+.sug:last-child{border-bottom:0}
+.sug .code{font-size:13px}
+.sug .sub{font-size:13px;color:var(--muted)}
+.sug.add-custom{color:var(--warn);font-weight:700;background:var(--warn-bg)}
+.sug.info{color:var(--muted);cursor:default}
+.items{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+.item.custom{border-left:5px solid var(--warn);background:var(--warn-bg)}
+.item.zero{opacity:.6}
+.item.flash{animation:flash .7s ease-out}
+@keyframes flash{from{background:var(--accent-soft)}}
+.item-head{display:flex;align-items:center;gap:8px}
+.item-head .code{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.code{font-family:var(--mono);font-weight:700;font-size:15px}
+.tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;flex:none}
+.tag.warn{background:var(--warn);color:#fff}
+.name{font-size:15px;line-height:1.3}
+.name.editable{text-decoration:underline dotted;cursor:pointer}
+.item-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.stepper button{width:44px;height:44px;border:0;background:var(--surface-2);font-size:22px;color:var(--fg);cursor:pointer;flex:none}
+.stepper input{width:64px;text-align:center;border:0;border-radius:0;min-height:44px;padding:4px;font-weight:700;font-size:18px;-moz-appearance:textfield;font-variant-numeric:tabular-nums}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.unitlbl{padding:0 10px 0 6px;color:var(--muted);font-size:13px}
+.price-row label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.price-row input{width:120px;min-height:40px;padding:6px 10px;text-align:right;font-variant-numeric:tabular-nums}
+.linetotal{font-weight:700;font-variant-numeric:tabular-nums}
+.empty{text-align:center;color:var(--muted);padding:24px 8px;font-size:14px}
+.pricebox{display:flex;flex-direction:column;gap:8px}
+.totals{display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-variant-numeric:tabular-nums;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.totals .big{font-weight:700;font-size:18px}
+.totals .r{text-align:right}
+.actionbar{display:flex;gap:8px;align-items:center;padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
+.actionbar .summary{flex:1;min-width:0;font-size:14px;color:var(--muted)}
+.actionbar .summary b{color:var(--fg)}
+.lcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);cursor:pointer;text-align:left;font:inherit;color:var(--fg);width:100%}
+.lcard .t{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px}
+.lcard .t span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lcard .m{color:var(--muted);font-size:13px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.prodrow{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.prodrow:last-child{border-bottom:0}
+.prodrow .sub{color:var(--muted);font-size:13px}
+.preview{overflow-x:auto;font-size:13px}
+.preview table{border-collapse:collapse;white-space:nowrap}
+.preview th,.preview td{border:1px solid var(--line);padding:4px 8px;text-align:left}
+.preview th{background:var(--surface-2)}
+.overlay{position:fixed;inset:0;z-index:50;background:#000;color:#fff;display:flex;flex-direction:column}
+.scan-top{display:flex;align-items:center;gap:8px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top,0px));background:#111}
+.scan-top .ttl{flex:1;font-weight:700}
+.scan-top .btn{background:#fff;color:#000;border-color:#fff}
+#scan-reader{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000}
+#scan-reader video{max-width:100%;max-height:100%}
+.scan-bottom{padding:10px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));background:#111;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.scan-last{background:#1f2a2e;border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.scan-last .stepper{background:#111;border-color:#333}
+.scan-last .stepper button{background:#2a3a40;color:#fff}
+.scan-last .stepper input{background:#111;color:#fff}
+.scan-miss{background:#3a2d10;color:#ffe9b0;border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.scan-miss .row .btn{flex:1;background:#fff;color:#000;border-color:#fff}
+.scan-status{font-size:13px;color:#bbb;text-align:center}
+.modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+.modal-card{background:var(--surface);color:var(--fg);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));max-height:92%;overflow:auto;display:flex;flex-direction:column;gap:12px}
+@media (min-width:600px){.modal{align-items:center;padding:16px}.modal-card{border-radius:16px}}
+.modal-body{display:flex;flex-direction:column;gap:10px}
+.modal-actions{display:flex;gap:8px;flex-wrap:wrap}
+.modal-actions .btn{flex:1}
+.toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:200;background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:14px;font-weight:600;max-width:90vw;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.menu-list{display:flex;flex-direction:column;gap:8px}
+.menu-list .btn{text-align:left}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-variant-numeric:tabular-nums}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (prefers-reduced-motion:reduce){.item.flash{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- KİLİT EKRANI -->
+  <section class="view view-center" id="view-lock" hidden>
+    <div class="card lockcard">
+      <div class="brand">▌▌▌▌▌</div>
+      <h1>Sipariş Listesi</h1>
+      <p class="muted">Devam etmek için PIN girin.</p>
+      <form id="lock-form" autocomplete="off">
+        <input id="lock-pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" aria-label="PIN">
+        <button class="btn primary block" type="submit">Kilidi aç</button>
+      </form>
+      <p id="lock-msg" class="msg danger" hidden></p>
+      <button class="linkbtn" id="lock-forgot" type="button">PIN'i unuttum</button>
+    </div>
+  </section>
+
+  <!-- İLK KURULUM -->
+  <section class="view view-center" id="view-setup" hidden>
+    <div class="card lockcard" style="text-align:left">
+      <div class="brand" style="text-align:center">▌▌▌▌▌</div>
+      <h1 style="text-align:center">Sipariş Listesi</h1>
+      <p class="muted">Tüm bilgiler yalnızca bu telefonda, PIN ile şifrelenmiş olarak saklanır. Hiçbir veri internete gönderilmez.</p>
+      <form id="setup-form" autocomplete="off">
+        <label class="field"><span>Firma adı (PDF başlığında görünür)</span><input id="setup-company" placeholder="Örn. Yılmaz Gıda Toptan"></label>
+        <label class="field"><span>PIN (en az 4 karakter)</span><input id="setup-pin" type="password" inputmode="numeric" autocomplete="new-password"></label>
+        <label class="field"><span>PIN tekrar</span><input id="setup-pin2" type="password" inputmode="numeric" autocomplete="new-password"></label>
+        <p id="setup-msg" class="msg danger" hidden></p>
+        <button class="btn primary block" type="submit">Başla</button>
+      </form>
+      <p class="muted small">PIN'i unutursanız veriler geri getirilemez. Ürün listesini Excel'den yeniden yükleyebilirsiniz.</p>
+    </div>
+  </section>
+
+  <!-- LİSTELER -->
+  <section class="view" id="view-lists" hidden>
+    <header class="topbar">
+      <h1>Listeler</h1>
+      <button id="btn-new-list" class="btn primary">+ Yeni liste</button>
+    </header>
+    <div class="content">
+      <div id="install-hint" class="hint" hidden>
+        <div><b>Ana ekrana ekleyin.</b> iPhone: Safari'de Paylaş, sonra "Ana Ekrana Ekle". Android: Chrome menüsünden "Ana ekrana ekle". Böylece uygulama gibi açılır.</div>
+        <button class="btn sm" id="install-hint-close">Tamam</button>
+      </div>
+      <div id="products-hint" class="hint warn" hidden>
+        <div><b>Ürün listesi yüklü değil.</b> Barkod ve stok kodu araması için Excel dosyanızı yükleyin.</div>
+        <button class="btn sm" id="products-hint-go">Yükle</button>
+      </div>
+      <input id="lists-search" type="search" placeholder="Müşteri veya not ara" autocomplete="off">
+      <div id="lists-container" class="items"></div>
+      <div id="lists-empty" class="empty" hidden>Henüz liste yok. "Yeni liste" ile başlayın.</div>
+    </div>
+  </section>
+
+  <!-- LİSTE DÜZENLEME -->
+  <section class="view" id="view-editor" hidden>
+    <header class="topbar">
+      <button id="ed-back" class="iconbtn" aria-label="Geri" title="Geri">‹</button>
+      <div class="topbar-title"><b id="ed-title">Yeni liste</b><small id="ed-saved">&nbsp;</small></div>
+      <button id="ed-menu" class="iconbtn" aria-label="Menü" title="Menü">⋮</button>
+    </header>
+    <div class="content">
+      <div class="row2">
+        <div class="field grow search-wrap">
+          <span>Müşteri</span>
+          <input id="ed-customer" placeholder="Müşteri adı" autocomplete="off" autocapitalize="words">
+          <div id="ed-customer-suggest" class="suggest" hidden></div>
+        </div>
+        <label class="field" style="flex:0 0 150px"><span>Tarih</span><input id="ed-date" type="date"></label>
+      </div>
+      <div class="addbar">
+        <div class="search-wrap">
+          <input id="ed-search" type="search" placeholder="Stok kodu veya ürün adı yazın" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="done">
+          <div id="ed-suggest" class="suggest" hidden></div>
+        </div>
+        <button id="ed-scan" class="btn primary" title="Barkod okut">📷 Tara</button>
+      </div>
+      <div id="ed-items" class="items"></div>
+      <div id="ed-empty" class="empty">Henüz ürün yok. Barkod okutun ya da stok kodunu yazın.</div>
+      <label class="field"><span>Not</span><textarea id="ed-note" rows="2" placeholder="Teslimat, ödeme, özel istek..."></textarea></label>
+      <div class="pricebox card plain">
+        <label class="switch"><input type="checkbox" id="ed-showprices"><span>Fiyatları göster</span></label>
+        <div id="ed-pricing" hidden>
+          <label class="field"><span>İskonto %</span><input id="ed-discount" type="number" inputmode="decimal" min="0" max="100" step="0.5" placeholder="0"></label>
+          <div class="totals" id="ed-totals" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </div>
+    <footer class="actionbar">
+      <div class="summary"><b id="ed-count">0</b> kalem<br><b id="ed-koli">0</b> koli</div>
+      <button id="ed-pdf" class="btn">PDF</button>
+      <button id="ed-xlsx" class="btn">Excel</button>
+      <button id="ed-save" class="btn primary">Kaydet</button>
+    </footer>
+  </section>
+
+  <!-- ÜRÜNLER -->
+  <section class="view" id="view-products" hidden>
+    <header class="topbar"><h1>Ürünler</h1></header>
+    <div class="content">
+      <div class="card">
+        <h2>Ürün listesi (Excel)</h2>
+        <div id="prod-status" class="small muted"></div>
+        <input type="file" id="prod-file" accept=".xlsx,.xls,.xlsm,.csv,.txt" hidden>
+        <div class="row">
+          <button class="btn primary" id="prod-pick">Excel yükle</button>
+          <button class="btn danger" id="prod-clear" hidden>Listeyi sil</button>
+        </div>
+        <p class="small muted">Sütunlar: Stok Kodu, Ürün Açıklaması, Barkod, Koli İçi Adet, Fiyat. Sütun adları farklıysa yükleme sırasında eşleştirirsiniz. Yeni bir dosya yüklemek eski listenin yerine geçer; kayıtlı siparişler etkilenmez.</p>
+      </div>
+      <div id="prod-map" class="card" hidden></div>
+      <div class="card" id="prod-search-card">
+        <h2>Üründe ara</h2>
+        <input id="prod-search" type="search" placeholder="Stok kodu, ad veya barkod" autocomplete="off">
+        <div id="prod-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AYARLAR -->
+  <section class="view" id="view-settings" hidden>
+    <header class="topbar"><h1>Ayarlar</h1></header>
+    <div class="content">
+      <div class="card">
+        <h2>Genel</h2>
+        <label class="field"><span>Firma adı</span><input id="set-company" placeholder="PDF başlığında görünür"></label>
+        <label class="field"><span>Otomatik kilit</span>
+          <select id="set-autolock">
+            <option value="1">1 dakika sonra</option>
+            <option value="5">5 dakika sonra</option>
+            <option value="15">15 dakika sonra</option>
+            <option value="60">1 saat sonra</option>
+            <option value="0">Kapalı (sadece uygulama kapanınca)</option>
+          </select>
+        </label>
+        <div class="field"><span>Excel'deki fiyat</span>
+          <div class="radios">
+            <label><input type="radio" name="set-basis" value="adet"> Adet fiyatı</label>
+            <label><input type="radio" name="set-basis" value="koli"> Koli fiyatı</label>
+          </div>
+          <p class="small muted">Adet fiyatı seçiliyse tutar = koli × koli içi adet × fiyat.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Güvenlik</h2>
+        <div class="row">
+          <button class="btn" id="set-pin">PIN değiştir</button>
+          <button class="btn" id="set-lock">Şimdi kilitle</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Yedek</h2>
+        <p class="small muted">Yedek dosyası PIN'inizle şifrelidir. Başka bir telefona taşımak veya yanlışlıkla silmeye karşı saklamak için kullanın.</p>
+        <input type="file" id="set-restore-file" accept=".json,application/json" hidden>
+        <div class="row">
+          <button class="btn" id="set-backup">Yedek al</button>
+          <button class="btn" id="set-restore">Yedeği geri yükle</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Bilgi</h2>
+        <dl class="kv">
+          <dt>Sürüm</dt><dd id="info-version"></dd>
+          <dt>Ürün</dt><dd id="info-products"></dd>
+          <dt>Liste</dt><dd id="info-lists"></dd>
+          <dt>Depolama</dt><dd id="info-storage"></dd>
+        </dl>
+        <p class="small muted">Veriler bu telefonda şifreli saklanır. Uygulama hiçbir sunucuya veri göndermez.</p>
+      </div>
+      <div class="card">
+        <h2>Tehlikeli bölge</h2>
+        <button class="btn danger" id="set-wipe">Tüm verileri sil</button>
+      </div>
+    </div>
+  </section>
+
+  <nav id="nav" class="bottomnav" hidden>
+    <button data-view="lists"><span class="ico">☰</span>Listeler</button>
+    <button data-view="products"><span class="ico">▦</span>Ürünler</button>
+    <button data-view="settings"><span class="ico">⚙</span>Ayarlar</button>
+  </nav>
+</div>
+
+<!-- BARKOD OKUYUCU -->
+<div id="scanner" class="overlay" hidden>
+  <div class="scan-top">
+    <span class="ttl">Barkod okut</span>
+    <button id="scan-torch" class="iconbtn" aria-label="Fener" title="Fener" hidden>🔦</button>
+    <button id="scan-close" class="btn">Bitti</button>
+  </div>
+  <div id="scan-reader"></div>
+  <div class="scan-bottom">
+    <div id="scan-last" class="scan-last" hidden>
+      <div class="row" style="justify-content:space-between">
+        <div class="grow"><div class="code" id="scan-last-code"></div><div class="small" id="scan-last-name"></div></div>
+        <div class="stepper"><button id="scan-dec" type="button">−</button><input id="scan-qty" type="number" inputmode="decimal" min="0" step="1"><button id="scan-inc" type="button">+</button><span class="unitlbl">koli</span></div>
+      </div>
+    </div>
+    <div id="scan-miss" class="scan-miss" hidden>
+      <div>Barkod <b id="scan-miss-code"></b> ürün listesinde yok.</div>
+      <div class="row"><button class="btn" id="scan-miss-add">Elle ekle</button><button class="btn" id="scan-miss-skip">Devam</button></div>
+    </div>
+    <div id="scan-status" class="scan-status">Kamera açılıyor…</div>
+  </div>
+</div>
+
+<!-- PENCERE -->
+<div id="modal" class="modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title"></h2>
+    <div id="modal-body" class="modal-body"></div>
+    <div id="modal-actions" class="modal-actions"></div>
+  </div>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const APP_VERSION = '1.0.0';
+const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js' };
+
+/* ---------- yardımcılar ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nfMoney = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nfQty = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 3 });
+const fmtMoney = n => nfMoney.format(Number(n) || 0);
+const fmtQty = n => nfQty.format(Number(n) || 0);
+const fmtDate = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}.${m[2]}.${m[1]}` : (iso || ''); };
+const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const TR_MAP = { 'ç': 'c', 'ğ': 'g', 'ı': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u', 'â': 'a', 'î': 'i', 'û': 'u' };
+const fold = s => String(s ?? '').toLocaleLowerCase('tr-TR').replace(/[çğıöşüâîû]/g, c => TR_MAP[c]).replace(/\s+/g, ' ').trim();
+const normBarcode = s => String(s ?? '').replace(/\D/g, '').replace(/^0+/, '');
+const safeName = s => fold(s).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'liste';
+function parseNum(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  let s = String(v ?? '').trim().replace(/[^\d,.\-]/g, '');
+  if (!s) return null;
+  if (s.includes(',') && s.includes('.')) {
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, '');
+  } else if (s.includes(',')) s = s.replace(',', '.');
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+function cellStr(v) {
+  if (v == null) return '';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).trim();
+}
+function debounce(fn, ms) {
+  let t = null, pending = false;
+  const run = () => { t = null; pending = false; fn(); };
+  const d = () => { pending = true; clearTimeout(t); t = setTimeout(run, ms); };
+  d.flush = () => { if (pending) { clearTimeout(t); run(); } };
+  return d;
+}
+const loaded = {};
+function loadScript(src) {
+  return loaded[src] || (loaded[src] = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = src;
+    s.onload = res; s.onerror = () => { delete loaded[src]; rej(new Error('Modül yüklenemedi: ' + src)); };
+    document.head.appendChild(s);
+  }));
+}
+function b64(buf) { const u = new Uint8Array(buf); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+function unb64(s) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+let toastT = null;
+function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+function showErr(e) { console.error(e); toast('Hata: ' + (e && e.message ? e.message : e), 4000); }
+
+/* ---------- depolama (IndexedDB) ---------- */
+const DB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('siparis-app', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error || new Error('IndexedDB açılamadı'));
+  }));
+  const tx = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('kv', mode); const st = t.objectStore('kv'); const req = fn(st);
+      t.oncomplete = () => res(req ? req.result : undefined);
+      t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('İşlem iptal'));
+    });
+  };
+  return {
+    get: k => tx('readonly', st => st.get(k)),
+    set: (k, v) => tx('readwrite', st => st.put(v, k)),
+    del: k => tx('readwrite', st => st.delete(k)),
+    clear: () => tx('readwrite', st => st.clear())
+  };
+})();
+
+/* ---------- şifreleme ---------- */
+const Crypto = {
+  async deriveKey(pin, salt) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(pin)), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  },
+  async encrypt(key, obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+    return { iv, ct };
+  },
+  async decrypt(key, rec) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: rec.iv }, key, rec.ct);
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+};
+
+/* ---------- durum ---------- */
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false };
+let KEY = null, META = null, cur = null;
+const S = { products: [], productMeta: null, lists: [], settings: { ...DEF_SETTINGS } };
+let IDX = { byCode: new Map(), byBarcode: new Map() };
+
+function buildIndex() {
+  IDX = { byCode: new Map(), byBarcode: new Map() };
+  for (const p of S.products) {
+    p._fc = fold(p.code); p._fn = fold(p.name); p._bc = normBarcode(p.barcode);
+    if (p._fc) IDX.byCode.set(p._fc, p);
+    if (p._bc) IDX.byBarcode.set(p._bc, p);
+  }
+}
+function plainProducts() { return S.products.map(p => ({ code: p.code, barcode: p.barcode || '', name: p.name, unit: p.unit ?? null, price: p.price ?? null })); }
+async function persist(part) {
+  if (!KEY) return;
+  const data = part === 'products' ? { products: plainProducts(), meta: S.productMeta } : part === 'lists' ? S.lists : S.settings;
+  await DB.set(part, await Crypto.encrypt(KEY, data));
+}
+const persistLists = debounce(() => { persist('lists').then(() => setSaved(true)).catch(showErr); }, 350);
+function flushSaves() { persistLists.flush(); }
+async function loadAll() {
+  const [p, l, s] = await Promise.all([DB.get('products'), DB.get('lists'), DB.get('settings')]);
+  if (p) { const d = await Crypto.decrypt(KEY, p); S.products = d.products || []; S.productMeta = d.meta || null; } else { S.products = []; S.productMeta = null; }
+  S.lists = l ? await Crypto.decrypt(KEY, l) : [];
+  S.settings = { ...DEF_SETTINGS, ...(s ? await Crypto.decrypt(KEY, s) : {}) };
+  buildIndex();
+}
+
+/* ---------- arama ---------- */
+function search(q, limit = 30) {
+  const fq = fold(q); if (!fq) return [];
+  const toks = fq.split(' ').filter(Boolean);
+  const digits = normBarcode(q);
+  const out = [];
+  for (const p of S.products) {
+    let score = -1;
+    if (p._fc === fq) score = 0;
+    else if (p._fc.startsWith(fq)) score = 1;
+    else if (p._fc.includes(fq)) score = 2;
+    else { const hay = p._fc + ' ' + p._fn; if (toks.every(t => hay.includes(t))) score = 3; else if (digits.length >= 4 && p._bc && p._bc.includes(digits)) score = 4; }
+    if (score >= 0) out.push({ p, score });
+  }
+  out.sort((a, b) => a.score - b.score || a.p._fn.localeCompare(b.p._fn, 'tr'));
+  return out.slice(0, limit).map(x => x.p);
+}
+function findExact(text) {
+  const bc = normBarcode(text);
+  return (bc && IDX.byBarcode.get(bc)) || IDX.byCode.get(fold(text)) || null;
+}
+
+/* ---------- hesaplar ---------- */
+function lineTotal(it, basis) {
+  if (it.price == null || !Number.isFinite(Number(it.price))) return null;
+  const mult = basis === 'adet' ? (it.unit && it.unit > 0 ? it.unit : 1) : 1;
+  return (Number(it.qty) || 0) * mult * Number(it.price);
+}
+function calcTotals(list, basis) {
+  let koli = 0, adet = 0, subtotal = 0, pricedLines = 0;
+  for (const it of list.items) {
+    const q = Number(it.qty) || 0; koli += q; if (it.unit) adet += q * it.unit;
+    const lt = lineTotal(it, basis); if (lt != null) { subtotal += lt; pricedLines++; }
+  }
+  const discount = Math.min(100, Math.max(0, Number(list.discount) || 0));
+  const discountAmt = subtotal * discount / 100;
+  return { count: list.items.length, koli, adet, subtotal, discount, discountAmt, total: subtotal - discountAmt, pricedLines };
+}
+function tableModel(list) {
+  const basis = S.settings.priceBasis || 'koli';
+  const priced = !!list.showPrices;
+  const anyUnit = list.items.some(i => i.unit);
+  const headers = ['#', 'Stok Kodu', 'Ürün Açıklaması'];
+  if (anyUnit) headers.push('Koli İçi Adet');
+  headers.push('Sipariş (Koli)');
+  if (priced) headers.push(basis === 'adet' ? 'Birim Fiyat (Adet, TL)' : 'Koli Fiyatı (TL)', 'Tutar (TL)');
+  const rows = list.items.map((it, i) => {
+    const r = [i + 1, it.code + (it.custom ? ' *' : ''), it.name];
+    if (anyUnit) r.push(it.unit ?? null);
+    r.push(Number(it.qty) || 0);
+    if (priced) r.push(it.price ?? null, lineTotal(it, basis));
+    return r;
+  });
+  const t = calcTotals(list, basis);
+  const summary = [['Toplam koli', t.koli, 'qty']];
+  if (anyUnit && t.adet) summary.push(['Toplam adet', t.adet, 'qty']);
+  if (priced) {
+    summary.push(['Ara toplam (TL)', t.subtotal, 'money']);
+    if (t.discount) summary.push([`İskonto (%${fmtQty(t.discount)}) (TL)`, -t.discountAmt, 'money']);
+    summary.push(['Genel toplam (TL)', t.total, 'money']);
+  }
+  return { headers, rows, summary, priced, anyUnit, hasCustom: list.items.some(i => i.custom), totals: t };
+}
+
+/* ---------- görünümler ---------- */
+const VIEWS = ['lock', 'setup', 'lists', 'editor', 'products', 'settings'];
+let curView = null;
+function showView(name) {
+  curView = name;
+  for (const v of VIEWS) $('#view-' + v).hidden = v !== name;
+  const navOn = ['lists', 'products', 'settings'].includes(name);
+  $('#nav').hidden = !navOn;
+  $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
+  if (name === 'lists') renderLists();
+  if (name === 'products') renderProducts();
+  if (name === 'settings') renderSettings();
+}
+$$('#nav button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+/* ---------- pencere / onay ---------- */
+let modalClose = null;
+function openModal({ title, html, buttons = [], onClose }) {
+  closeModal();
+  const m = $('#modal'); $('#modal-title').textContent = title; $('#modal-body').innerHTML = html;
+  const act = $('#modal-actions'); act.innerHTML = '';
+  let closed = false;
+  const close = () => { if (closed) return; closed = true; m.hidden = true; modalClose = null; if (onClose) onClose(); };
+  modalClose = close;
+  for (const b of buttons) {
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn ' + (b.cls || ''); btn.textContent = b.label;
+    btn.addEventListener('click', () => b.onClick ? b.onClick(close) : close());
+    act.appendChild(btn);
+  }
+  act.hidden = buttons.length === 0;
+  m.hidden = false;
+  return close;
+}
+function closeModal() { if (modalClose) modalClose(); }
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+function confirmDlg(title, msg, { ok = 'Evet', danger = false } = {}) {
+  return new Promise(res => {
+    let r = false;
+    openModal({ title, html: `<p>${msg}</p>`, buttons: [{ label: 'Vazgeç' }, { label: ok, cls: danger ? 'danger' : 'primary', onClick: c => { r = true; c(); } }], onClose: () => res(r) });
+  });
+}
+function askPin(title, msg) {
+  return new Promise(res => {
+    let val = null;
+    openModal({
+      title, html: `<p class="muted">${msg}</p><input id="ask-pin" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off">`,
+      buttons: [{ label: 'Vazgeç' }, { label: 'Devam', cls: 'primary', onClick: c => { val = $('#ask-pin').value; c(); } }],
+      onClose: () => res(val)
+    });
+    setTimeout(() => $('#ask-pin').focus(), 50);
+  });
+}
+
+/* ---------- kilit / kurulum ---------- */
+let fails = 0, lockUntil = 0;
+function lock() {
+  flushSaves(); KEY = null; cur = null;
+  S.products = []; S.lists = []; S.productMeta = null; buildIndex();
+  closeScanner(); closeModal();
+  $('#lock-pin').value = ''; $('#lock-msg').hidden = true;
+  showView('lock');
+}
+$('#lock-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('#lock-msg');
+  if (Date.now() < lockUntil) { msg.textContent = `Çok fazla yanlış deneme. ${Math.ceil((lockUntil - Date.now()) / 1000)} sn bekleyin.`; msg.hidden = false; return; }
+  const pin = $('#lock-pin').value;
+  if (!pin) return;
+  const btn = $('#lock-form button'); btn.disabled = true;
+  try {
+    const key = await Crypto.deriveKey(pin, META.salt);
+    await Crypto.decrypt(key, META.verifier);
+    KEY = key; fails = 0;
+    await loadAll();
+    $('#lock-pin').value = ''; msg.hidden = true;
+    showView('lists');
+    preloadScanner();
+  } catch (err) {
+    fails++;
+    if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; }
+    msg.textContent = 'PIN yanlış.'; msg.hidden = false;
+    $('#lock-pin').value = ''; $('#lock-pin').focus();
+  } finally { btn.disabled = false; }
+});
+$('#lock-forgot').addEventListener('click', wipeAll);
+$('#setup-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pin = $('#setup-pin').value, pin2 = $('#setup-pin2').value, msg = $('#setup-msg');
+  if (pin.length < 4) { msg.textContent = 'PIN en az 4 karakter olmalı.'; msg.hidden = false; return; }
+  if (pin !== pin2) { msg.textContent = 'PIN\'ler aynı değil.'; msg.hidden = false; return; }
+  msg.hidden = true;
+  const btn = $('#setup-form button'); btn.disabled = true;
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await Crypto.deriveKey(pin, salt);
+    META = { v: 1, salt, verifier: await Crypto.encrypt(key, { ok: true }), createdAt: Date.now() };
+    await DB.set('meta', META);
+    KEY = key;
+    S.settings = { ...DEF_SETTINGS, company: $('#setup-company').value.trim() };
+    S.lists = []; S.products = []; S.productMeta = null; buildIndex();
+    await persist('settings');
+    try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (_) { }
+    showView('lists');
+    preloadScanner();
+  } catch (err) { showErr(err); } finally { btn.disabled = false; }
+});
+async function wipeAll() {
+  const ok = await confirmDlg('Tüm veriler silinsin mi?', 'Ürün listesi, kayıtlı siparişler ve PIN silinir. Bu işlem geri alınamaz.', { ok: 'Evet, hepsini sil', danger: true });
+  if (!ok) return;
+  const ok2 = await confirmDlg('Son kez soruyoruz', 'Gerçekten tüm verileri silmek istiyor musunuz?', { ok: 'Sil', danger: true });
+  if (!ok2) return;
+  try { await DB.clear(); } catch (e) { showErr(e); return; }
+  location.reload();
+}
+let hiddenAt = null;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { hiddenAt = Date.now(); flushSaves(); }
+  else if (hiddenAt && KEY) {
+    const mins = Number(S.settings.autoLock);
+    if (mins > 0 && Date.now() - hiddenAt > mins * 60000) lock();
+    hiddenAt = null;
+  }
+});
+window.addEventListener('pagehide', flushSaves);
+
+/* ---------- listeler ---------- */
+$('#btn-new-list').addEventListener('click', newList);
+$('#lists-search').addEventListener('input', renderLists);
+$('#products-hint-go').addEventListener('click', () => showView('products'));
+$('#install-hint-close').addEventListener('click', () => { S.settings.hintDismissed = true; persist('settings').catch(showErr); $('#install-hint').hidden = true; });
+function isStandalone() { return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+function renderLists() {
+  $('#install-hint').hidden = isStandalone() || !!S.settings.hintDismissed;
+  $('#products-hint').hidden = S.products.length > 0;
+  const q = fold($('#lists-search').value);
+  const lists = S.lists.filter(l => !q || fold(l.customer).includes(q) || fold(l.note).includes(q)).sort((a, b) => b.updatedAt - a.updatedAt);
+  const c = $('#lists-container');
+  c.innerHTML = lists.map(l => {
+    const t = calcTotals(l, S.settings.priceBasis);
+    const chips = [];
+    if (l.showPrices) chips.push(`<span class="chip ok">Fiyatlı · ${esc(fmtMoney(t.total))} ₺</span>`);
+    if (l.showPrices && t.discount) chips.push(`<span class="chip">İskonto %${esc(fmtQty(t.discount))}</span>`);
+    if (l.items.some(i => i.custom)) chips.push(`<span class="chip warn">Excel dışı kalem</span>`);
+    return `<button class="lcard" data-id="${l.id}"><div class="t"><span>${esc(l.customer || 'İsimsiz liste')}</span><span class="muted small">${esc(fmtDate(l.date))}</span></div><div class="m"><span>${t.count} kalem · ${esc(fmtQty(t.koli))} koli</span>${chips.join('')}</div>${l.note ? `<div class="small muted">${esc(l.note)}</div>` : ''}</button>`;
+  }).join('');
+  $('#lists-empty').hidden = lists.length > 0;
+}
+$('#lists-container').addEventListener('click', e => {
+  const card = e.target.closest('.lcard'); if (!card) return;
+  const l = S.lists.find(x => x.id === card.dataset.id); if (l) openList(l);
+});
+function newList() {
+  const l = { id: uid(), customer: '', date: todayISO(), note: '', items: [], discount: 0, showPrices: false, createdAt: Date.now(), updatedAt: Date.now() };
+  S.lists.unshift(l);
+  openList(l);
+  setTimeout(() => $('#ed-customer').focus(), 60);
+}
+function openList(l) { cur = l; renderEditor(); showView('editor'); }
+
+/* ---------- liste düzenleme ---------- */
+function setSaved(ok) { $('#ed-saved').textContent = ok ? 'Kaydedildi' : 'Kaydediliyor…'; }
+function touch() { if (!cur) return; cur.updatedAt = Date.now(); setSaved(false); persistLists(); }
+function renderEditor() {
+  $('#ed-title').textContent = cur.customer || 'Yeni liste';
+  $('#ed-customer').value = cur.customer || '';
+  $('#ed-date').value = cur.date || todayISO();
+  $('#ed-note').value = cur.note || '';
+  $('#ed-showprices').checked = !!cur.showPrices;
+  $('#ed-discount').value = cur.discount ? String(cur.discount) : '';
+  $('#ed-pricing').hidden = !cur.showPrices;
+  $('#ed-search').value = ''; hideSuggest(); hideCustomerSuggest();
+  setSaved(true);
+  renderItems();
+}
+function itemHTML(it, i) {
+  const basis = S.settings.priceBasis;
+  const lt = lineTotal(it, basis);
+  const priceRow = cur.showPrices ? `<div class="item-row price-row"><label>${basis === 'adet' ? 'Adet fiyatı' : 'Koli fiyatı'} <input data-act="price" type="number" inputmode="decimal" step="0.01" min="0" value="${it.price ?? ''}" placeholder="—"> ₺</label><span class="linetotal" data-role="lt">${lt == null ? '—' : esc(fmtMoney(lt)) + ' ₺'}</span></div>` : '';
+  return `<div class="item${it.custom ? ' custom' : ''}${!(Number(it.qty) > 0) ? ' zero' : ''}" data-id="${it.id}">
+    <div class="item-head"><span class="muted small">${i + 1}.</span><span class="code">${esc(it.code || '—')}</span>${it.custom ? '<span class="tag warn">Excel dışı</span>' : ''}<button class="iconbtn" data-act="del" aria-label="Satırı sil" title="Sil">✕</button></div>
+    <div class="name${it.custom ? ' editable' : ''}" data-act="${it.custom ? 'edit' : ''}">${esc(it.name)}</div>
+    <div class="item-row"><span class="muted small">${it.unit ? 'Koli içi: ' + esc(fmtQty(it.unit)) + ' adet' : ''}</span>
+      <div class="stepper"><button type="button" data-act="dec" aria-label="Azalt">−</button><input data-act="qty" type="number" inputmode="decimal" min="0" step="1" value="${it.qty}" aria-label="Koli"><button type="button" data-act="inc" aria-label="Artır">+</button><span class="unitlbl">koli</span></div></div>
+    ${priceRow}</div>`;
+}
+function renderItems() {
+  const c = $('#ed-items');
+  c.innerHTML = cur.items.map(itemHTML).join('');
+  $('#ed-empty').hidden = cur.items.length > 0;
+  renderTotals();
+}
+function renderTotals() {
+  const t = calcTotals(cur, S.settings.priceBasis);
+  $('#ed-count').textContent = t.count; $('#ed-koli').textContent = fmtQty(t.koli);
+  const box = $('#ed-totals');
+  if (!cur.showPrices) { box.innerHTML = ''; return; }
+  const missing = t.count - t.pricedLines;
+  box.innerHTML = `<span>Ara toplam</span><span class="r">${esc(fmtMoney(t.subtotal))} ₺</span>
+    ${t.discount ? `<span>İskonto %${esc(fmtQty(t.discount))}</span><span class="r">−${esc(fmtMoney(t.discountAmt))} ₺</span>` : ''}
+    <span class="big">Genel toplam</span><span class="r big">${esc(fmtMoney(t.total))} ₺</span>
+    ${missing ? `<span class="muted small" style="grid-column:1/-1">${missing} kalemde fiyat yok, toplama dahil değil.</span>` : ''}`;
+}
+function updateItemDOM(it) {
+  const el = $(`#ed-items .item[data-id="${it.id}"]`); if (!el) return;
+  const q = $('[data-act="qty"]', el); if (document.activeElement !== q) q.value = it.qty;
+  el.classList.toggle('zero', !(Number(it.qty) > 0));
+  const lt = $('[data-role="lt"]', el); if (lt) { const v = lineTotal(it, S.settings.priceBasis); lt.textContent = v == null ? '—' : fmtMoney(v) + ' ₺'; }
+  renderTotals();
+}
+function flashItem(id) {
+  const el = $(`#ed-items .item[data-id="${id}"]`); if (!el) return;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function addProduct(p, qty = 1) {
+  let it = cur.items.find(i => !i.custom && i.code === p.code);
+  if (it) it.qty = (Number(it.qty) || 0) + qty;
+  else { it = { id: uid(), code: p.code, name: p.name, barcode: p.barcode || '', unit: p.unit ?? null, price: p.price ?? null, qty, custom: false }; cur.items.push(it); }
+  touch(); renderItems(); flashItem(it.id);
+  return it;
+}
+function addCustom(v) {
+  const it = { id: uid(), code: v.code || '', name: v.name, barcode: v.barcode || '', unit: v.unit ?? null, price: v.price ?? null, qty: v.qty > 0 ? v.qty : 1, custom: true };
+  cur.items.push(it); touch(); renderItems(); flashItem(it.id);
+  return it;
+}
+function customItemDialog(pre = {}) {
+  return new Promise(resolve => {
+    let result = null;
+    const intro = pre.editing ? '' : `<p class="muted">"<b>${esc(pre.query || pre.code || '')}</b>" ürün listesinde (Excel) bulunamadı. Elle eklerseniz listede ve çıktılarda <b>Excel dışı</b> olarak işaretlenir.</p>`;
+    openModal({
+      title: pre.editing ? 'Elle eklenen ürünü düzenle' : 'Listede olmayan ürün',
+      html: `${intro}
+        <label class="field"><span>Stok kodu</span><input id="ci-code" value="${esc(pre.code || '')}" autocapitalize="off"></label>
+        <label class="field"><span>Ürün açıklaması *</span><input id="ci-name" value="${esc(pre.name || '')}"></label>
+        <div class="row2"><label class="field"><span>Koli</span><input id="ci-qty" type="number" inputmode="decimal" min="0" value="${pre.qty ?? 1}"></label>
+        <label class="field"><span>Koli içi adet</span><input id="ci-unit" type="number" inputmode="decimal" min="0" value="${pre.unit ?? ''}"></label></div>
+        <label class="field"><span>Fiyat (isteğe bağlı)</span><input id="ci-price" type="number" inputmode="decimal" step="0.01" min="0" value="${pre.price ?? ''}"></label>
+        <p id="ci-err" class="msg danger" hidden></p>`,
+      buttons: [{ label: 'Vazgeç' }, {
+        label: pre.editing ? 'Kaydet' : 'Evet, ekle', cls: 'primary', onClick: close => {
+          const name = $('#ci-name').value.trim();
+          if (!name) { const e = $('#ci-err'); e.textContent = 'Ürün açıklaması gerekli.'; e.hidden = false; $('#ci-name').focus(); return; }
+          const qty = parseNum($('#ci-qty').value);
+          result = { code: $('#ci-code').value.trim(), name, qty: qty != null && qty >= 0 ? qty : 1, unit: parseNum($('#ci-unit').value), price: parseNum($('#ci-price').value) };
+          close();
+        }
+      }],
+      onClose: () => resolve(result)
+    });
+    setTimeout(() => $(pre.code ? '#ci-name' : '#ci-code').focus(), 50);
+  });
+}
+$('#ed-items').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act]'); if (!btn) return;
+  const row = e.target.closest('.item'); const it = cur.items.find(i => i.id === row.dataset.id); if (!it) return;
+  const act = btn.dataset.act;
+  if (act === 'inc') { it.qty = (Number(it.qty) || 0) + 1; touch(); updateItemDOM(it); }
+  else if (act === 'dec') { it.qty = Math.max(0, (Number(it.qty) || 0) - 1); touch(); updateItemDOM(it); }
+  else if (act === 'del') { cur.items = cur.items.filter(i => i !== it); touch(); renderItems(); }
+  else if (act === 'edit' && it.custom) {
+    const v = await customItemDialog({ editing: true, code: it.code, name: it.name, qty: it.qty, unit: it.unit, price: it.price });
+    if (v) { Object.assign(it, { code: v.code, name: v.name, qty: v.qty, unit: v.unit, price: v.price }); touch(); renderItems(); }
+  }
+});
+$('#ed-items').addEventListener('input', e => {
+  const inp = e.target; const act = inp.dataset.act; if (!act) return;
+  const row = inp.closest('.item'); const it = cur.items.find(i => i.id === row.dataset.id); if (!it) return;
+  if (act === 'qty') { const v = parseNum(inp.value); it.qty = v != null && v >= 0 ? v : 0; touch(); updateItemDOM(it); }
+  else if (act === 'price') { const v = parseNum(inp.value); it.price = v != null && v >= 0 ? v : null; touch(); updateItemDOM(it); }
+});
+$('#ed-customer').addEventListener('input', e => { cur.customer = e.target.value.trim(); $('#ed-title').textContent = cur.customer || 'Yeni liste'; touch(); renderCustomerSuggest(); });
+$('#ed-customer').addEventListener('focus', renderCustomerSuggest);
+$('#ed-customer').addEventListener('blur', () => setTimeout(hideCustomerSuggest, 200));
+$('#ed-date').addEventListener('change', e => { cur.date = e.target.value || todayISO(); touch(); });
+$('#ed-note').addEventListener('input', e => { cur.note = e.target.value; touch(); });
+$('#ed-showprices').addEventListener('change', e => { cur.showPrices = e.target.checked; $('#ed-pricing').hidden = !cur.showPrices; touch(); renderItems(); });
+$('#ed-discount').addEventListener('input', e => { const v = parseNum(e.target.value); cur.discount = v != null ? Math.min(100, Math.max(0, v)) : 0; touch(); renderTotals(); });
+function customerNames() {
+  const seen = new Map();
+  for (const l of [...S.lists].sort((a, b) => b.updatedAt - a.updatedAt)) { const n = (l.customer || '').trim(); if (n && !seen.has(fold(n))) seen.set(fold(n), n); }
+  return [...seen.values()];
+}
+function renderCustomerSuggest() {
+  const box = $('#ed-customer-suggest'); const q = fold($('#ed-customer').value);
+  const names = customerNames().filter(n => fold(n) !== q && (!q || fold(n).includes(q))).slice(0, 8);
+  if (!names.length) { box.hidden = true; return; }
+  box.innerHTML = names.map(n => `<button type="button" class="sug" data-name="${esc(n)}">${esc(n)}</button>`).join('');
+  box.hidden = false;
+}
+function hideCustomerSuggest() { $('#ed-customer-suggest').hidden = true; }
+$('#ed-customer-suggest').addEventListener('mousedown', e => e.preventDefault());
+$('#ed-customer-suggest').addEventListener('click', e => {
+  const b = e.target.closest('.sug'); if (!b) return;
+  cur.customer = b.dataset.name; $('#ed-customer').value = cur.customer; $('#ed-title').textContent = cur.customer; touch(); hideCustomerSuggest();
+});
+
+/* ürün arama kutusu */
+const sugBox = $('#ed-suggest'), sInput = $('#ed-search');
+function hideSuggest() { sugBox.hidden = true; }
+function renderSuggest() {
+  const q = sInput.value.trim();
+  if (!q) { hideSuggest(); return; }
+  if (!S.products.length) {
+    sugBox.innerHTML = `<div class="sug info">Ürün listesi yüklü değil. Ürünler sekmesinden Excel yükleyin.</div><button type="button" class="sug add-custom" data-act="custom">"${esc(q)}" elle ekle</button>`;
+    sugBox.hidden = false; return;
+  }
+  const res = search(q, 25);
+  const rows = res.map(p => `<button type="button" class="sug" data-code="${esc(p.code)}"><div class="code">${esc(p.code)}</div><div>${esc(p.name)}</div><div class="sub">${p.unit ? 'Koli içi ' + esc(fmtQty(p.unit)) + ' · ' : ''}${p.price != null ? esc(fmtMoney(p.price)) + ' ₺' : ''}${p.barcode ? ' · ' + esc(p.barcode) : ''}</div></button>`);
+  rows.push(`<button type="button" class="sug add-custom" data-act="custom">${res.length ? 'Aradığım bu değil, elle ekle' : `"${esc(q)}" listede yok, elle ekle`}</button>`);
+  sugBox.innerHTML = rows.join(''); sugBox.hidden = false;
+}
+sInput.addEventListener('input', renderSuggest);
+sInput.addEventListener('focus', renderSuggest);
+sInput.addEventListener('blur', () => setTimeout(hideSuggest, 200));
+sugBox.addEventListener('mousedown', e => e.preventDefault());
+sugBox.addEventListener('click', async e => {
+  const b = e.target.closest('.sug'); if (!b || b.classList.contains('info')) return;
+  if (b.dataset.act === 'custom') { await offerCustom(sInput.value.trim()); return; }
+  const p = IDX.byCode.get(fold(b.dataset.code)); if (!p) return;
+  addProduct(p, 1); sInput.value = ''; hideSuggest(); sInput.focus();
+});
+sInput.addEventListener('keydown', async e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = sInput.value.trim(); if (!q) return;
+  const exact = findExact(q);
+  if (exact) { addProduct(exact, 1); sInput.value = ''; hideSuggest(); return; }
+  const res = search(q, 2);
+  if (res.length === 1) { addProduct(res[0], 1); sInput.value = ''; hideSuggest(); return; }
+  if (res.length === 0) await offerCustom(q);
+});
+async function offerCustom(q) {
+  hideSuggest();
+  const looksCode = /^[A-Za-z0-9\-_.\/]+$/.test(q);
+  const v = await customItemDialog(looksCode ? { query: q, code: q } : { query: q, name: q });
+  if (v) { addCustom(v); sInput.value = ''; toast('Excel dışı ürün eklendi'); }
+  sInput.focus();
+}
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) { hideSuggest(); hideCustomerSuggest(); } });
+
+/* geri / menü / kaydet */
+function leaveEditor() {
+  if (cur && !cur.items.length && !cur.customer && !cur.note) S.lists = S.lists.filter(l => l !== cur);
+  flushSaves(); cur = null; showView('lists');
+}
+$('#ed-back').addEventListener('click', leaveEditor);
+$('#ed-save').addEventListener('click', async () => {
+  try { persistLists.flush(); await persist('lists'); setSaved(true); toast('Liste kaydedildi'); leaveEditor(); } catch (e) { showErr(e); }
+});
+$('#ed-menu').addEventListener('click', () => {
+  openModal({
+    title: 'Liste', html: `<div class="menu-list">
+      <button type="button" class="btn" id="mn-copy">Listeyi kopyala (yeni liste olarak)</button>
+      <button type="button" class="btn" id="mn-clear">Tüm satırları temizle</button>
+      <button type="button" class="btn danger" id="mn-del">Listeyi sil</button></div>`, buttons: [{ label: 'Kapat' }]
+  });
+  $('#mn-copy').addEventListener('click', () => {
+    closeModal();
+    const copy = JSON.parse(JSON.stringify(cur)); copy.id = uid(); copy.date = todayISO(); copy.createdAt = copy.updatedAt = Date.now();
+    copy.items.forEach(i => { i.id = uid(); });
+    S.lists.unshift(copy); touch(); openList(copy); toast('Liste kopyalandı');
+  });
+  $('#mn-clear').addEventListener('click', async () => {
+    closeModal();
+    if (await confirmDlg('Satırlar temizlensin mi?', 'Listedeki tüm ürünler silinir. Müşteri ve not kalır.', { ok: 'Temizle', danger: true })) { cur.items = []; touch(); renderItems(); }
+  });
+  $('#mn-del').addEventListener('click', async () => {
+    closeModal();
+    if (await confirmDlg('Liste silinsin mi?', 'Bu liste telefondan kalıcı olarak silinir.', { ok: 'Sil', danger: true })) {
+      S.lists = S.lists.filter(l => l !== cur); cur = null; persistLists(); flushSaves(); showView('lists'); toast('Liste silindi');
+    }
+  });
+});
+
+/* ---------- barkod okuyucu ---------- */
+let scanner = null, scanPaused = false, lastScan = { code: '', t: 0 }, lastItemId = null, actx = null, torchOn = false;
+function preloadScanner() { loadScript(LIBS.qr).catch(() => { }); }
+function beep(ok) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'square'; o.frequency.value = ok ? 1500 : 320; g.gain.value = 0.06;
+    o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok ? 0.07 : 0.25));
+  } catch (_) { }
+  try { if (navigator.vibrate) navigator.vibrate(ok ? 40 : [70, 50, 70]); } catch (_) { }
+}
+async function openScanner() {
+  if (!cur) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Bu tarayıcıda kamera erişimi yok. Uygulamayı https adresinden açın.', 4000); return; }
+  $('#scan-status').textContent = 'Kamera açılıyor…';
+  $('#scan-last').hidden = true; $('#scan-miss').hidden = true; $('#scan-torch').hidden = true;
+  $('#scanner').hidden = false; document.body.classList.add('noscroll');
+  scanPaused = false; lastScan = { code: '', t: 0 }; torchOn = false;
+  try { beep(true); } catch (_) { }
+  try { await loadScript(LIBS.qr); } catch (e) { $('#scan-status').textContent = 'Kamera modülü yüklenemedi. İnternet bağlantısı ile bir kez açın.'; return; }
+  const F = window.Html5QrcodeSupportedFormats;
+  const formats = [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.QR_CODE];
+  try {
+    scanner = new Html5Qrcode('scan-reader', { formatsToSupport: formats, verbose: false, experimentalFeatures: { useBarCodeDetectorIfSupported: true } });
+    await scanner.start({ facingMode: 'environment' }, {
+      fps: 10, disableFlip: true,
+      qrbox: (w, h) => ({ width: Math.round(Math.min(w * 0.9, 480)), height: Math.round(Math.max(110, Math.min(h * 0.32, 200))) })
+    }, onScan, () => { });
+    $('#scan-status').textContent = 'Kamerayı barkoda tutun. Her okuma 1 koli ekler.';
+    try { const caps = scanner.getRunningTrackCapabilities(); if (caps && caps.torch) $('#scan-torch').hidden = false; } catch (_) { }
+  } catch (e) {
+    const m = String(e && e.message || e);
+    $('#scan-status').textContent = /NotAllowed|Permission|izin/i.test(m) ? 'Kamera izni verilmedi. Tarayıcı ayarlarından kameraya izin verin.' : 'Kamera açılamadı: ' + m;
+    scanner = null;
+  }
+}
+function onScan(text) {
+  if (scanPaused || !cur) return;
+  const now = Date.now(); const key = normBarcode(text) || fold(text);
+  if (key === lastScan.code && now - lastScan.t < 2500) return;
+  lastScan = { code: key, t: now };
+  const p = findExact(text);
+  if (p) { const it = addProduct(p, 1); lastItemId = it.id; showScanLast(it); beep(true); }
+  else { scanPaused = true; $('#scan-miss-code').textContent = text; $('#scan-miss').hidden = false; $('#scan-last').hidden = true; beep(false); }
+}
+function showScanLast(it) {
+  $('#scan-last-code').textContent = it.code; $('#scan-last-name').textContent = it.name; $('#scan-qty').value = it.qty;
+  $('#scan-last').hidden = false; $('#scan-miss').hidden = true;
+}
+function scanItem() { return cur && cur.items.find(i => i.id === lastItemId); }
+$('#scan-inc').addEventListener('click', () => { const it = scanItem(); if (!it) return; it.qty = (Number(it.qty) || 0) + 1; $('#scan-qty').value = it.qty; touch(); });
+$('#scan-dec').addEventListener('click', () => { const it = scanItem(); if (!it) return; it.qty = Math.max(0, (Number(it.qty) || 0) - 1); $('#scan-qty').value = it.qty; touch(); });
+$('#scan-qty').addEventListener('input', e => { const it = scanItem(); if (!it) return; const v = parseNum(e.target.value); it.qty = v != null && v >= 0 ? v : 0; touch(); });
+$('#scan-miss-skip').addEventListener('click', () => { $('#scan-miss').hidden = true; scanPaused = false; });
+$('#scan-miss-add').addEventListener('click', async () => {
+  const code = $('#scan-miss-code').textContent;
+  const v = await customItemDialog({ query: code, code });
+  if (v) { const it = addCustom({ ...v, barcode: code }); lastItemId = it.id; showScanLast(it); toast('Excel dışı ürün eklendi'); }
+  $('#scan-miss').hidden = true; scanPaused = false;
+});
+$('#scan-torch').addEventListener('click', async () => {
+  if (!scanner) return;
+  try { torchOn = !torchOn; await scanner.applyVideoConstraints({ advanced: [{ torch: torchOn }] }); } catch (_) { toast('Fener bu cihazda desteklenmiyor'); }
+});
+async function closeScanner() {
+  if (scanner) { const s = scanner; scanner = null; try { await s.stop(); } catch (_) { } try { s.clear(); } catch (_) { } }
+  $('#scanner').hidden = true; document.body.classList.remove('noscroll');
+  if (cur && curView === 'editor') renderItems();
+}
+$('#scan-close').addEventListener('click', closeScanner);
+$('#ed-scan').addEventListener('click', openScanner);
+
+/* ---------- dışa aktarma ---------- */
+let prepared = null;
+function fileSheet(file, label) {
+  prepared = file;
+  const canShare = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
+  openModal({
+    title: label + ' hazır', html: `<p class="muted">${esc(file.name)}</p><p class="small muted">${canShare ? 'WhatsApp, e-posta veya başka bir uygulamayla gönderin.' : 'Dosya cihazınıza indirilecek.'}</p>`,
+    buttons: [{ label: 'Kapat' }, ...(canShare ? [{ label: 'Paylaş', cls: 'primary', onClick: () => shareFile() }] : []), { label: 'İndir', cls: canShare ? '' : 'primary', onClick: c => { downloadFile(); c(); } }]
+  });
+}
+async function shareFile() {
+  if (!prepared) return;
+  try { await navigator.share({ files: [prepared], title: prepared.name }); closeModal(); }
+  catch (e) { if (e && e.name !== 'AbortError') toast('Paylaşılamadı, indirmeyi deneyin'); }
+}
+function downloadFile() {
+  if (!prepared) return;
+  const url = URL.createObjectURL(prepared); const a = document.createElement('a'); a.href = url; a.download = prepared.name; a.rel = 'noopener';
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+}
+function docTitle(list) { return `Siparis_${safeName(list.customer)}_${list.date || todayISO()}`; }
+async function exportPdf(list) {
+  await loadScript(LIBS.pdf); await loadScript(LIBS.fonts);
+  const m = tableModel(list);
+  const numCols = new Set(); m.headers.forEach((h, i) => { if (i >= 3) numCols.add(i); });
+  const fmtCell = (v, ci) => {
+    if (v == null) return '';
+    if (typeof v !== 'number') return String(v);
+    const h = m.headers[ci]; return h.includes('TL') ? fmtMoney(v) : fmtQty(v);
+  };
+  const body = [m.headers.map((h, i) => ({ text: h, bold: true, fillColor: '#E8EEF0', alignment: numCols.has(i) ? 'right' : 'left' }))];
+  m.rows.forEach((r, ri) => body.push(r.map((v, ci) => ({ text: fmtCell(v, ci), alignment: numCols.has(ci) ? 'right' : 'left', italics: !!list.items[ri].custom && ci === 2 }))));
+  const widths = m.headers.map((h, i) => i === 2 ? '*' : 'auto');
+  const summaryTable = { table: { widths: ['*', 'auto'], body: m.summary.map(([k, v, kind], i) => [{ text: k, bold: i === m.summary.length - 1 && m.priced, alignment: 'right' }, { text: kind === 'money' ? fmtMoney(v) : fmtQty(v), bold: i === m.summary.length - 1 && m.priced, alignment: 'right' }]) }, layout: 'noBorders', margin: [0, 6, 0, 0] };
+  const dd = {
+    pageSize: 'A4', pageMargins: [36, 44, 36, 48],
+    defaultStyle: { font: 'Roboto', fontSize: 9 },
+    info: { title: docTitle(list) },
+    content: [
+      { columns: [{ text: S.settings.company || 'SİPARİŞ LİSTESİ', fontSize: 14, bold: true }, { text: 'Tarih: ' + fmtDate(list.date) + '\nListe no: ' + list.id.slice(-6).toUpperCase(), alignment: 'right', fontSize: 9 }] },
+      S.settings.company ? { text: 'SİPARİŞ LİSTESİ', fontSize: 10, color: '#555555', margin: [0, 2, 0, 0] } : null,
+      { text: 'Müşteri: ' + (list.customer || '—'), fontSize: 11, bold: true, margin: [0, 10, 0, 4] },
+      list.note ? { text: 'Not: ' + list.note, italics: true, margin: [0, 0, 0, 6] } : null,
+      { table: { headerRows: 1, widths, body }, layout: { hLineWidth: () => 0.5, vLineWidth: () => 0, hLineColor: () => '#BBBBBB', paddingTop: () => 4, paddingBottom: () => 4 }, margin: [0, 4, 0, 0] },
+      summaryTable,
+      m.hasCustom ? { text: '* Ürün listesinde (Excel) bulunmayan, elle eklenen kalem.', fontSize: 8, color: '#8A5A00', margin: [0, 8, 0, 0] } : null
+    ].filter(Boolean),
+    footer: (cp, pc) => ({ columns: [{ text: 'Oluşturma: ' + new Date().toLocaleString('tr-TR'), fontSize: 8, color: '#777777', margin: [36, 0, 0, 0] }, { text: cp + ' / ' + pc, alignment: 'right', fontSize: 8, color: '#777777', margin: [0, 0, 36, 0] }] })
+  };
+  const blob = await new Promise((res, rej) => { try { pdfMake.createPdf(dd).getBlob(res); } catch (e) { rej(e); } });
+  return new File([blob], docTitle(list) + '.pdf', { type: 'application/pdf' });
+}
+async function exportXlsx(list) {
+  await loadScript(LIBS.xlsx);
+  const m = tableModel(list);
+  const aoa = [
+    [S.settings.company || 'SİPARİŞ LİSTESİ'],
+    ['Müşteri', list.customer || ''], ['Tarih', fmtDate(list.date)], ['Not', list.note || ''], [],
+    m.headers, ...m.rows, [],
+    ...m.summary.map(([k, v]) => { const r = new Array(m.headers.length).fill(''); r[m.headers.length - 2] = k; r[m.headers.length - 1] = v; return r; })
+  ];
+  if (m.hasCustom) aoa.push([], ['* Ürün listesinde (Excel) bulunmayan, elle eklenen kalem.']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = m.headers.map((h, i) => ({ wch: i === 2 ? 42 : i === 0 ? 5 : Math.max(12, h.length + 2) }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sipariş');
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new File([out], docTitle(list) + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+async function runExport(kind) {
+  if (!cur) return;
+  if (!cur.items.length) { toast('Listede ürün yok'); return; }
+  const btn = kind === 'pdf' ? $('#ed-pdf') : $('#ed-xlsx'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Hazırlanıyor…';
+  try { flushSaves(); const f = kind === 'pdf' ? await exportPdf(cur) : await exportXlsx(cur); fileSheet(f, kind === 'pdf' ? 'PDF' : 'Excel'); }
+  catch (e) { showErr(e); } finally { btn.disabled = false; btn.textContent = old; }
+}
+$('#ed-pdf').addEventListener('click', () => runExport('pdf'));
+$('#ed-xlsx').addEventListener('click', () => runExport('xlsx'));
+
+/* ---------- ürünler (Excel içe aktarma) ---------- */
+let pending = null;
+function guessMapping(headers) {
+  const H = headers.map(fold);
+  const pick = (re, taken) => { for (let i = 0; i < H.length; i++) if (!taken.has(i) && re.test(H[i])) return i; return -1; };
+  const taken = new Set(); const g = {};
+  const assign = (k, re) => { const i = pick(re, taken); if (i >= 0) { taken.add(i); g[k] = i; } else g[k] = -1; };
+  assign('barcode', /barkod|barcode|^ean|^upc|gtin/);
+  assign('code', /(stok|urun|malzeme|mal|item|product)\s*(kod|no|code)|^kod|^sku$|^stokno|^stok$/);
+  assign('name', /aciklama|urun\s*ad|urun\s*tanim|malzeme\s*ad|tanim|isim|^ad[i]?$|description|^name$|product\s*name|^urun$/);
+  assign('unit', /koli\s*ic|koli\s*adet|kolideki|adet\s*\/\s*koli|birim\s*adet|paket\s*ic|ic\s*adet|kutu\s*ic/);
+  assign('price', /fiyat|price|tutar/);
+  return g;
+}
+$('#prod-pick').addEventListener('click', () => $('#prod-file').click());
+$('#prod-file').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    await loadScript(LIBS.xlsx);
+    const buf = await f.arrayBuffer();
+    const isCsv = /\.(csv|txt)$/i.test(f.name);
+    // CSV: raw=true hücreleri metin bırakır; "189,90" gibi Türkçe ondalıklar ve başı sıfırlı barkodlar bozulmaz.
+    const wb = isCsv ? XLSX.read(buf, { type: 'array', raw: true, codepage: 65001 }) : XLSX.read(buf, { type: 'array', cellDates: false });
+    if (!wb.SheetNames.length) throw new Error('Dosyada sayfa bulunamadı');
+    pending = { wb, fileName: f.name };
+    renderMapping(wb.SheetNames[0]);
+  } catch (err) { showErr(err); }
+});
+function sheetRows(name) {
+  const ws = pending.wb.Sheets[name];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+  let hi = rows.findIndex(r => r.filter(c => cellStr(c) !== '').length >= 2);
+  if (hi < 0) hi = 0;
+  const headers = (rows[hi] || []).map(cellStr);
+  return { headers, data: rows.slice(hi + 1).filter(r => r.some(c => cellStr(c) !== '')) };
+}
+function renderMapping(sheetName) {
+  const { headers, data } = sheetRows(sheetName);
+  const g = guessMapping(headers);
+  const opt = (sel) => `<option value="-1">— yok —</option>` + headers.map((h, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(h || ('Sütun ' + (i + 1)))}</option>`).join('');
+  const basis = g.unit >= 0 ? 'adet' : 'koli';
+  $('#prod-map').innerHTML = `<h2>Sütunları eşleştir</h2>
+    <p class="small muted">${esc(pending.fileName)} · ${data.length} satır. Otomatik tahmin edildi, kontrol edin.</p>
+    ${pending.wb.SheetNames.length > 1 ? `<label class="field"><span>Sayfa</span><select id="map-sheet">${pending.wb.SheetNames.map(n => `<option${n === sheetName ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
+    <label class="field"><span>Stok kodu *</span><select id="map-code">${opt(g.code)}</select></label>
+    <label class="field"><span>Ürün açıklaması *</span><select id="map-name">${opt(g.name)}</select></label>
+    <label class="field"><span>Barkod</span><select id="map-barcode">${opt(g.barcode)}</select></label>
+    <label class="field"><span>Koli içi adet</span><select id="map-unit">${opt(g.unit)}</select></label>
+    <label class="field"><span>Fiyat</span><select id="map-price">${opt(g.price)}</select></label>
+    <div class="field"><span>Excel'deki fiyat</span><div class="radios"><label><input type="radio" name="map-basis" value="adet"${basis === 'adet' ? ' checked' : ''}> Adet fiyatı</label><label><input type="radio" name="map-basis" value="koli"${basis === 'koli' ? ' checked' : ''}> Koli fiyatı</label></div></div>
+    <div id="map-preview" class="preview"></div>
+    <p id="map-err" class="msg danger" hidden></p>
+    <div class="row"><button type="button" class="btn" id="map-cancel">Vazgeç</button><button type="button" class="btn primary" id="map-ok">İçe aktar</button></div>`;
+  $('#prod-map').hidden = false;
+  const preview = () => {
+    const mi = mapIdx();
+    const cols = [['Stok kodu', mi.code], ['Açıklama', mi.name], ['Barkod', mi.barcode], ['Koli içi', mi.unit], ['Fiyat', mi.price]].filter(c => c[1] >= 0);
+    $('#map-preview').innerHTML = `<table><tr>${cols.map(c => `<th>${esc(c[0])}</th>`).join('')}</tr>${data.slice(0, 3).map(r => `<tr>${cols.map(c => `<td>${esc(cellStr(r[c[1]]))}</td>`).join('')}</tr>`).join('')}</table>`;
+  };
+  const mapIdx = () => ({ code: +$('#map-code').value, name: +$('#map-name').value, barcode: +$('#map-barcode').value, unit: +$('#map-unit').value, price: +$('#map-price').value });
+  $$('#prod-map select').forEach(s => s.addEventListener('change', preview));
+  const sheetSel = $('#map-sheet'); if (sheetSel) sheetSel.addEventListener('change', () => renderMapping(sheetSel.value));
+  $('#map-cancel').addEventListener('click', () => { pending = null; $('#prod-map').hidden = true; });
+  $('#map-ok').addEventListener('click', async () => {
+    const mi = mapIdx(); const err = $('#map-err');
+    if (mi.code < 0 || mi.name < 0) { err.textContent = 'Stok kodu ve ürün açıklaması sütunları zorunlu.'; err.hidden = false; return; }
+    if (mi.code === mi.name) { err.textContent = 'Stok kodu ve açıklama aynı sütun olamaz.'; err.hidden = false; return; }
+    err.hidden = true;
+    const map = new Map(); let skipped = 0;
+    for (const r of data) {
+      const code = cellStr(r[mi.code]), name = cellStr(r[mi.name]);
+      if (!code || !name) { skipped++; continue; }
+      map.set(fold(code), { code, name, barcode: mi.barcode >= 0 ? cellStr(r[mi.barcode]) : '', unit: mi.unit >= 0 ? parseNum(r[mi.unit]) : null, price: mi.price >= 0 ? parseNum(r[mi.price]) : null });
+    }
+    if (!map.size) { err.textContent = 'Hiç ürün okunamadı. Sütun seçimlerini kontrol edin.'; err.hidden = false; return; }
+    S.products = [...map.values()];
+    S.productMeta = { fileName: pending.fileName, sheet: sheetName, importedAt: Date.now(), count: map.size, skipped, columns: { code: headers[mi.code], name: headers[mi.name], barcode: headers[mi.barcode] || '', unit: headers[mi.unit] || '', price: headers[mi.price] || '' } };
+    S.settings.priceBasis = ($('input[name="map-basis"]:checked') || {}).value || 'koli';
+    buildIndex();
+    try { await persist('products'); await persist('settings'); } catch (e) { showErr(e); return; }
+    pending = null; $('#prod-map').hidden = true;
+    toast(`${map.size} ürün yüklendi${skipped ? ', ' + skipped + ' satır atlandı' : ''}`, 3000);
+    renderProducts();
+  });
+  preview();
+}
+$('#prod-clear').addEventListener('click', async () => {
+  if (!await confirmDlg('Ürün listesi silinsin mi?', 'Kayıtlı siparişler etkilenmez. Yeni bir Excel yükleyerek devam edebilirsiniz.', { ok: 'Sil', danger: true })) return;
+  S.products = []; S.productMeta = null; buildIndex();
+  try { await persist('products'); } catch (e) { showErr(e); }
+  renderProducts();
+});
+function renderProducts() {
+  const m = S.productMeta;
+  $('#prod-status').innerHTML = S.products.length
+    ? `<b>${S.products.length} ürün yüklü.</b> ${esc(m && m.fileName || '')} · ${m ? new Date(m.importedAt).toLocaleString('tr-TR') : ''}${m && m.skipped ? ` · ${m.skipped} satır atlandı (kod veya açıklama boş)` : ''}<br>Barkodlu: ${S.products.filter(p => p._bc).length} · Fiyatlı: ${S.products.filter(p => p.price != null).length} · Koli içi adet: ${S.products.filter(p => p.unit).length}`
+    : 'Henüz ürün listesi yüklenmedi.';
+  $('#prod-clear').hidden = !S.products.length;
+  $('#prod-search-card').hidden = !S.products.length;
+  renderProductSearch();
+}
+function renderProductSearch() {
+  const q = $('#prod-search').value.trim(); const box = $('#prod-results');
+  if (!q) { box.innerHTML = `<p class="small muted">${S.products.length} ürün içinde arayın.</p>`; return; }
+  const res = search(q, 50);
+  box.innerHTML = res.length ? res.map(p => `<div class="prodrow"><div><span class="code">${esc(p.code)}</span> ${esc(p.name)}</div><div class="sub">${p.barcode ? 'Barkod ' + esc(p.barcode) + ' · ' : ''}${p.unit ? 'Koli içi ' + esc(fmtQty(p.unit)) + ' · ' : ''}${p.price != null ? esc(fmtMoney(p.price)) + ' ₺' : 'fiyat yok'}</div></div>`).join('') : '<p class="small muted">Sonuç yok.</p>';
+}
+$('#prod-search').addEventListener('input', renderProductSearch);
+
+/* ---------- ayarlar ---------- */
+function renderSettings() {
+  $('#set-company').value = S.settings.company || '';
+  $('#set-autolock').value = String(S.settings.autoLock ?? 5);
+  const b = $(`input[name="set-basis"][value="${S.settings.priceBasis || 'koli'}"]`); if (b) b.checked = true;
+  $('#info-version').textContent = APP_VERSION;
+  $('#info-products').textContent = S.products.length + ' ürün' + (S.productMeta ? ' (' + S.productMeta.fileName + ')' : '');
+  $('#info-lists').textContent = S.lists.length + ' liste';
+  const st = $('#info-storage'); st.textContent = 'kontrol ediliyor…';
+  (async () => {
+    try {
+      const persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null;
+      const est = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null;
+      st.textContent = (est ? Math.round((est.usage || 0) / 1024) + ' KB kullanılıyor' : '') + (persisted === true ? ' · kalıcı' : persisted === false ? ' · geçici (yedek almanız önerilir)' : '');
+    } catch (_) { st.textContent = '—'; }
+  })();
+}
+$('#set-company').addEventListener('change', e => { S.settings.company = e.target.value.trim(); persist('settings').catch(showErr); });
+$('#set-autolock').addEventListener('change', e => { S.settings.autoLock = Number(e.target.value); persist('settings').catch(showErr); });
+$$('input[name="set-basis"]').forEach(r => r.addEventListener('change', e => { if (e.target.checked) { S.settings.priceBasis = e.target.value; persist('settings').catch(showErr); } }));
+$('#set-lock').addEventListener('click', lock);
+$('#set-pin').addEventListener('click', () => {
+  openModal({
+    title: 'PIN değiştir', html: `
+      <label class="field"><span>Mevcut PIN</span><input id="cp-old" type="password" inputmode="numeric" autocomplete="off"></label>
+      <label class="field"><span>Yeni PIN (en az 4 karakter)</span><input id="cp-new" type="password" inputmode="numeric" autocomplete="off"></label>
+      <label class="field"><span>Yeni PIN tekrar</span><input id="cp-new2" type="password" inputmode="numeric" autocomplete="off"></label>
+      <p id="cp-err" class="msg danger" hidden></p>`,
+    buttons: [{ label: 'Vazgeç' }, {
+      label: 'Değiştir', cls: 'primary', onClick: async close => {
+        const err = $('#cp-err'); const o = $('#cp-old').value, n = $('#cp-new').value, n2 = $('#cp-new2').value;
+        const fail = t => { err.textContent = t; err.hidden = false; };
+        if (n.length < 4) return fail('Yeni PIN en az 4 karakter olmalı.');
+        if (n !== n2) return fail('Yeni PIN\'ler aynı değil.');
+        try { const k = await Crypto.deriveKey(o, META.salt); await Crypto.decrypt(k, META.verifier); } catch (_) { return fail('Mevcut PIN yanlış.'); }
+        try {
+          const salt = crypto.getRandomValues(new Uint8Array(16));
+          const key = await Crypto.deriveKey(n, salt);
+          const newMeta = { ...META, salt, verifier: await Crypto.encrypt(key, { ok: true }) };
+          KEY = key; META = newMeta;
+          await Promise.all([persist('products'), persist('lists'), persist('settings')]);
+          await DB.set('meta', META);
+          close(); toast('PIN değiştirildi');
+        } catch (e) { fail('Hata: ' + e.message); }
+      }
+    }]
+  });
+  setTimeout(() => $('#cp-old').focus(), 50);
+});
+$('#set-wipe').addEventListener('click', wipeAll);
+$('#set-backup').addEventListener('click', async () => {
+  try {
+    flushSaves();
+    const payload = { products: plainProducts(), productMeta: S.productMeta, lists: S.lists, settings: S.settings };
+    const rec = await Crypto.encrypt(KEY, payload);
+    const out = { app: 'siparis-listesi', v: 1, createdAt: new Date().toISOString(), salt: b64(META.salt), iv: b64(rec.iv), data: b64(rec.ct) };
+    const f = new File([JSON.stringify(out)], `siparis_yedek_${todayISO()}.json`, { type: 'application/json' });
+    fileSheet(f, 'Yedek');
+  } catch (e) { showErr(e); }
+});
+$('#set-restore').addEventListener('click', () => $('#set-restore-file').click());
+$('#set-restore-file').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (j.app !== 'siparis-listesi' || !j.data) throw new Error('Bu dosya bir yedek dosyası değil');
+    const pin = await askPin('Yedeğin PIN\'i', 'Yedek alındığı sırada kullanılan PIN\'i girin.'); if (pin == null) return;
+    let payload;
+    try { const k = await Crypto.deriveKey(pin, unb64(j.salt)); payload = await Crypto.decrypt(k, { iv: unb64(j.iv), ct: unb64(j.data) }); }
+    catch (_) { toast('PIN yanlış ya da dosya bozuk', 3000); return; }
+    const ok = await confirmDlg('Yedek geri yüklensin mi?', `Yedek: ${esc(new Date(j.createdAt).toLocaleString('tr-TR'))} · ${(payload.products || []).length} ürün · ${(payload.lists || []).length} liste.<br>Bu telefondaki mevcut ürünler ve listeler yedektekilerle <b>değiştirilir</b>.`, { ok: 'Geri yükle', danger: true });
+    if (!ok) return;
+    S.products = payload.products || []; S.productMeta = payload.productMeta || null; S.lists = payload.lists || []; S.settings = { ...DEF_SETTINGS, ...(payload.settings || {}) };
+    buildIndex();
+    await Promise.all([persist('products'), persist('lists'), persist('settings')]);
+    toast('Yedek geri yüklendi'); renderSettings();
+  } catch (err) { showErr(err); }
+});
+
+/* ---------- başlangıç ---------- */
+async function boot() {
+  $('#info-version').textContent = APP_VERSION;
+  if (!window.crypto || !crypto.subtle || !window.indexedDB) {
+    document.body.innerHTML = '<div class="view-center"><div class="card"><h1>Tarayıcı desteklemiyor</h1><p>Bu uygulama https adresinde, güncel Safari veya Chrome ile çalışır.</p></div></div>';
+    return;
+  }
+  try { META = await DB.get('meta'); } catch (e) { showErr(e); }
+  if (META && META.salt) { showView('lock'); setTimeout(() => $('#lock-pin').focus(), 100); }
+  else { showView('setup'); }
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing; if (!nw) return;
+        nw.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) toast('Yeni sürüm indirildi. Uygulamayı kapatıp açın.', 4000); });
+      });
+    }).catch(() => { });
+  }
+}
+boot();
+
+/* test ve hata ayıklama için küçük bir dışa açık yüzey */
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor } };
+})();
+</script>
+</body>
+</html>
