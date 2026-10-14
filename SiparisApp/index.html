@@ -173,6 +173,19 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .scan-miss{background:#3a2d10;color:#ffe9b0;border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .scan-miss .row .btn{flex:1;background:#fff;color:#000;border-color:#fff}
 .scan-status{font-size:13px;color:#bbb;text-align:center}
+.scan-info .infocard{background:#1f2a2e;border-color:#334;color:#fff;box-shadow:none}
+.scan-info .infocard-code{color:#7fd3d8}
+.scan-info .kv dt{color:#aab}
+.bigbtn{min-height:56px;font-size:18px}
+#view-lookup .search-wrap{flex:none}
+.infocard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:6px;box-shadow:var(--shadow)}
+.infocard-code{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--accent);word-break:break-all}
+.infocard-name{font-size:18px;font-weight:600;line-height:1.3}
+.infocard .kv{margin-top:6px;font-size:16px}
+.infocard .kv dd{font-weight:600}
+.infocard.miss{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn);font-weight:600}
+.hcard{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.hcard .code{font-size:14px}
 .modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 .modal-card{background:var(--surface);color:var(--fg);width:100%;max-width:520px;border-radius:16px 16px 0 0;padding:16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));max-height:92%;overflow:auto;display:flex;flex-direction:column;gap:12px}
 @media (min-width:600px){.modal{align-items:center;padding:16px}.modal-card{border-radius:16px}}
@@ -367,8 +380,27 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
     </div>
   </section>
 
+  <!-- ÜRÜN KÜNYESİ -->
+  <section class="view" id="view-lookup" hidden>
+    <header class="topbar"><h1>Ürün künyesi</h1></header>
+    <div class="content">
+      <button id="lk-scan" class="btn primary block bigbtn">📷 Barkod okut</button>
+      <div class="search-wrap">
+        <input id="lk-search" type="search" placeholder="Stok kodu, ad veya barkod yazın" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="search">
+        <div id="lk-suggest" class="suggest" hidden></div>
+      </div>
+      <div id="lk-card"></div>
+      <div id="lk-empty" class="empty">Barkod okutun ya da stok kodu yazın. Ürünün stok kodu, açıklaması, koli içi adedi ve fiyatı burada görünür. Listeye bir şey eklenmez.</div>
+      <div id="lk-history" hidden>
+        <div class="field"><span>Son bakılanlar</span></div>
+        <div id="lk-history-list" class="items"></div>
+      </div>
+    </div>
+  </section>
+
   <nav id="nav" class="bottomnav" hidden>
     <button data-view="lists"><span class="ico">☰</span>Listeler</button>
+    <button data-view="lookup"><span class="ico">🔎</span>Künye</button>
     <button data-view="products"><span class="ico">▦</span>Ürünler</button>
     <button data-view="settings"><span class="ico">⚙</span>Ayarlar</button>
   </nav>
@@ -389,6 +421,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
         <div class="stepper"><button id="scan-dec" type="button">−</button><input id="scan-qty" type="number" inputmode="decimal" min="0" step="1"><button id="scan-inc" type="button">+</button><span class="unitlbl">koli</span></div>
       </div>
     </div>
+    <div id="scan-info" class="scan-info" hidden></div>
     <div id="scan-miss" class="scan-miss" hidden>
       <div>Barkod <b id="scan-miss-code"></b> ürün listesinde yok.</div>
       <div class="row"><button class="btn" id="scan-miss-add">Elle ekle</button><button class="btn" id="scan-miss-skip">Devam</button></div>
@@ -410,7 +443,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -602,12 +635,12 @@ function tableModel(list) {
 }
 
 /* ---------- görünümler ---------- */
-const VIEWS = ['lock', 'setup', 'lists', 'editor', 'products', 'settings'];
+const VIEWS = ['lock', 'setup', 'lists', 'editor', 'lookup', 'products', 'settings'];
 let curView = null;
 function showView(name) {
   curView = name;
   for (const v of VIEWS) $('#view-' + v).hidden = v !== name;
-  const navOn = ['lists', 'products', 'settings'].includes(name);
+  const navOn = ['lists', 'lookup', 'products', 'settings'].includes(name);
   $('#nav').hidden = !navOn;
   $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   if (name === 'lists') renderLists();
@@ -976,8 +1009,80 @@ $('#ed-menu').addEventListener('click', () => {
   });
 });
 
+/* ---------- ürün künyesi ---------- */
+let lkHistory = [];
+function infoCardHTML(p) {
+  const basis = S.settings.priceBasis || 'koli';
+  const rows = [];
+  rows.push(['Barkod', p.barcode ? esc(p.barcode) : '—']);
+  rows.push(['Koli içi', p.unit ? esc(fmtQty(p.unit)) + ' adet' : '—']);
+  if (p.price != null) {
+    if (basis === 'adet') {
+      rows.push(['Adet fiyatı', esc(fmtMoney(p.price)) + ' ₺']);
+      if (p.unit) rows.push(['Koli fiyatı', esc(fmtMoney(p.price * p.unit)) + ' ₺']);
+    } else {
+      rows.push(['Koli fiyatı', esc(fmtMoney(p.price)) + ' ₺']);
+      if (p.unit) rows.push(['Adet fiyatı', esc(fmtMoney(p.price / p.unit)) + ' ₺']);
+    }
+  } else rows.push(['Fiyat', '—']);
+  return `<div class="infocard"><div class="infocard-code">${esc(p.code)}</div><div class="infocard-name">${esc(p.name)}</div><dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>`;
+}
+function showLookup(p) {
+  $('#lk-card').innerHTML = infoCardHTML(p);
+  $('#lk-empty').hidden = true;
+  lkHistory = [p, ...lkHistory.filter(x => x !== p)].slice(0, 8);
+  renderLkHistory();
+}
+function showLookupMiss(text) {
+  $('#lk-card').innerHTML = `<div class="infocard miss">"${esc(text)}" ürün listesinde bulunamadı.</div>`;
+  $('#lk-empty').hidden = true;
+}
+function renderLkHistory() {
+  $('#lk-history').hidden = lkHistory.length === 0;
+  $('#lk-history-list').innerHTML = lkHistory.map(p => `<button type="button" class="lcard hcard" data-code="${esc(p.code)}"><span class="code">${esc(p.code)}</span><span class="grow small">${esc(p.name)}</span></button>`).join('');
+}
+function lookupByText(text) {
+  const p = findExact(text);
+  if (p) showLookup(p); else showLookupMiss(text);
+  return p;
+}
+$('#lk-history-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-code]'); if (!b) return;
+  const p = IDX.byCode.get(fold(b.dataset.code)); if (p) { showLookup(p); $('#view-lookup .content').scrollTo({ top: 0, behavior: 'smooth' }); }
+});
+const lkInput = $('#lk-search'), lkBox = $('#lk-suggest');
+function hideLkSuggest() { lkBox.hidden = true; }
+function renderLkSuggest() {
+  const q = lkInput.value.trim();
+  if (!q) { hideLkSuggest(); return; }
+  if (!S.products.length) { lkBox.innerHTML = '<div class="sug info">Ürün listesi yüklü değil. Ürünler sekmesinden Excel yükleyin.</div>'; lkBox.hidden = false; return; }
+  const res = search(q, 25);
+  lkBox.innerHTML = res.length ? res.map(p => `<button type="button" class="sug" data-code="${esc(p.code)}"><div class="code">${esc(p.code)}</div><div>${esc(p.name)}</div></button>`).join('') : '<div class="sug info">Sonuç yok.</div>';
+  lkBox.hidden = false;
+}
+lkInput.addEventListener('input', renderLkSuggest);
+lkInput.addEventListener('focus', renderLkSuggest);
+lkInput.addEventListener('blur', () => setTimeout(hideLkSuggest, 200));
+lkBox.addEventListener('mousedown', e => e.preventDefault());
+lkBox.addEventListener('click', e => {
+  const b = e.target.closest('.sug[data-code]'); if (!b) return;
+  const p = IDX.byCode.get(fold(b.dataset.code)); if (!p) return;
+  showLookup(p); lkInput.value = ''; hideLkSuggest(); lkInput.blur();
+});
+lkInput.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = lkInput.value.trim(); if (!q) return;
+  const exact = findExact(q);
+  const res = exact ? [exact] : search(q, 2);
+  if (res.length === 1) { showLookup(res[0]); lkInput.value = ''; hideLkSuggest(); lkInput.blur(); }
+  else if (res.length === 0) { showLookupMiss(q); hideLkSuggest(); }
+});
+$('#lk-scan').addEventListener('click', () => openScanner('lookup'));
+
 /* ---------- barkod okuyucu ---------- */
-let scanner = null, scanPaused = false, lastScan = { code: '', t: 0 }, lastItemId = null, actx = null, torchOn = false;
+let scanner = null, scanPaused = false, lastScan = { code: '', t: 0 }, lastItemId = null, actx = null, torchOn = false, scanMode = 'order';
+function setScanMode(mode) { scanMode = mode; $('#scan-miss-add').hidden = mode === 'lookup'; }
 function preloadScanner() { loadScript(LIBS.qr).catch(() => { }); }
 function beep(ok) {
   try {
@@ -989,11 +1094,12 @@ function beep(ok) {
   } catch (_) { }
   try { if (navigator.vibrate) navigator.vibrate(ok ? 40 : [70, 50, 70]); } catch (_) { }
 }
-async function openScanner() {
-  if (!cur) return;
+async function openScanner(mode = 'order') {
+  setScanMode(mode);
+  if (mode === 'order' && !cur) return;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('Bu tarayıcıda kamera erişimi yok. Uygulamayı https adresinden açın.', 4000); return; }
   $('#scan-status').textContent = 'Kamera açılıyor…';
-  $('#scan-last').hidden = true; $('#scan-miss').hidden = true; $('#scan-torch').hidden = true;
+  $('#scan-last').hidden = true; $('#scan-miss').hidden = true; $('#scan-torch').hidden = true; $('#scan-info').hidden = true;
   $('#scanner').hidden = false; document.body.classList.add('noscroll');
   scanPaused = false; lastScan = { code: '', t: 0 }; torchOn = false;
   try { beep(true); } catch (_) { }
@@ -1006,7 +1112,7 @@ async function openScanner() {
       fps: 10, disableFlip: true,
       qrbox: (w, h) => ({ width: Math.round(Math.min(w * 0.9, 480)), height: Math.round(Math.max(110, Math.min(h * 0.32, 200))) })
     }, onScan, () => { });
-    $('#scan-status').textContent = 'Kamerayı barkoda tutun. Her okuma 1 koli ekler.';
+    $('#scan-status').textContent = mode === 'lookup' ? 'Kamerayı barkoda tutun. Ürün bilgisi altta görünür.' : 'Kamerayı barkoda tutun. Her okuma 1 koli ekler.';
     try { const caps = scanner.getRunningTrackCapabilities(); if (caps && caps.torch) $('#scan-torch').hidden = false; } catch (_) { }
   } catch (e) {
     const m = String(e && e.message || e);
@@ -1015,11 +1121,17 @@ async function openScanner() {
   }
 }
 function onScan(text) {
-  if (scanPaused || !cur) return;
+  if (scanPaused) return;
+  if (scanMode === 'order' && !cur) return;
   const now = Date.now(); const key = normBarcode(text) || fold(text);
   if (key === lastScan.code && now - lastScan.t < 2500) return;
   lastScan = { code: key, t: now };
   const p = findExact(text);
+  if (scanMode === 'lookup') {
+    if (p) { showLookup(p); $('#scan-info').innerHTML = infoCardHTML(p); $('#scan-info').hidden = false; $('#scan-miss').hidden = true; beep(true); }
+    else { showLookupMiss(text); scanPaused = true; $('#scan-miss-code').textContent = text; $('#scan-miss').hidden = false; $('#scan-info').hidden = true; beep(false); }
+    return;
+  }
   if (p) { const it = addProduct(p, 1); lastItemId = it.id; showScanLast(it); beep(true); }
   else { scanPaused = true; $('#scan-miss-code').textContent = text; $('#scan-miss').hidden = false; $('#scan-last').hidden = true; beep(false); }
 }
@@ -1048,7 +1160,7 @@ async function closeScanner() {
   if (cur && curView === 'editor') renderItems();
 }
 $('#scan-close').addEventListener('click', closeScanner);
-$('#ed-scan').addEventListener('click', openScanner);
+$('#ed-scan').addEventListener('click', () => openScanner('order'));
 
 /* ---------- dışa aktarma ---------- */
 let prepared = null;
@@ -1338,7 +1450,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText } };
 })();
 </script>
 </body>
