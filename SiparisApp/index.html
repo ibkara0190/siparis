@@ -397,9 +397,9 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
         <details id="set-cloud">
           <summary>İnternetle okuma: çok daha isabetli (isteğe bağlı, kapalı)</summary>
           <div class="modal-body" style="margin-top:10px">
-            <p class="small muted">İnternet varken fiş fotoğrafı bir yapay zekâ servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları telefondaki OCR'dan çok daha iyi okur. <b>Google Gemini</b> için ücretsiz bir anahtar yeterlidir: <b>aistudio.google.com</b> → "Get API key" (Google hesabı yeter, kart istenmez; ücretsiz katmanda Google gönderilen içeriği ürünlerini geliştirmek için kullanabilir). Anthropic Claude ücretli bir alternatiftir. Açıkken fiş menüsünde "İnternetle / Telefonda" seçimi çıkar; fotoğraf ve ürün kodu listesi yalnızca "İnternetle" seçiliyken gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
+            <p class="small muted">İnternet varken fiş fotoğrafı bir yapay zekâ servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları telefondaki OCR'dan çok daha iyi okur. <b>Google Gemini</b> için ücretsiz bir anahtar yeterlidir: <b>aistudio.google.com</b> → "Get API key" (Google hesabı yeter, kart istenmez; ücretsiz katmanda Google gönderilen içeriği ürünlerini geliştirmek için kullanabilir). AI Studio'da faturalandırmayı açarsanız listedeki ücretli Gemini modellerini (Gemini 4 Argon, 3.1 Pro) de seçebilirsiniz; Anthropic Claude ücretli bir diğer alternatiftir. Açıkken fiş menüsünde "İnternetle / Telefonda" seçimi çıkar; fotoğraf ve ürün kodu listesi yalnızca "İnternetle" seçiliyken gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
             <label class="switch"><input type="checkbox" id="set-aicloud"><span>İnternetle okumayı aç</span></label>
-            <label class="field"><span>Servis</span><select id="set-aiprovider"><option value="gemini">Google Gemini (ücretsiz anahtar)</option><option value="anthropic">Anthropic Claude (ücretli)</option></select></label>
+            <label class="field"><span>Servis</span><select id="set-aiprovider"><option value="gemini">Google Gemini (ücretsiz katman; ücretli modeller de var)</option><option value="anthropic">Anthropic Claude (ücretli)</option></select></label>
             <div class="field"><span id="set-aikey-label">API anahtarı</span>
               <div class="row2"><input id="set-aikey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…"><button type="button" class="btn" id="set-aikey-toggle" style="flex:0 0 auto">Göster</button></div>
             </div>
@@ -523,7 +523,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.2.1';
+const APP_VERSION = '1.2.2';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -2481,7 +2481,15 @@ function slipParseResponse(resp) {
   return data;
 }
 /* ---- yol 3b: Google Gemini (ücretsiz anahtar; aistudio.google.com) ---- */
-const GEMINI_MODELS = [['gemini-3.8-flash', 'Gemini 3.8 Flash · önerilen, ücretsiz katman'], ['gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite · daha hızlı'], ['gemini-2.5-flash', 'Gemini 2.5 Flash · önceki nesil']];
+const GEMINI_MODELS = [ // ücretsiz katmanda çalışanlar ve faturalandırma açıksa kullanılabilen ücretli modeller (Google'ın model listesi, Ekim 2026)
+  ['gemini-3.8-flash', 'Gemini 3.8 Flash · önerilen (ücretsiz katman)'],
+  ['gemini-4-argon', 'Gemini 4 Argon · en güçlü (ücretli)'],
+  ['gemini-3.1-pro-preview', 'Gemini 3.1 Pro Preview · güçlü (ücretli)'],
+  ['gemini-2.5-pro', 'Gemini 2.5 Pro (ücretsiz katman, sınırlı erişim)'],
+  ['gemini-3.6-flash', 'Gemini 3.6 Flash (ücretsiz katman)'],
+  ['gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite · en hızlı (ücretsiz katman)'],
+  ['gemini-2.5-flash', 'Gemini 2.5 Flash · önceki nesil']
+];
 const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
 const GEMINI_URL = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent';
 function geminiModel() { return GEMINI_MODELS.some(m => m[0] === S.settings.geminiModel) ? S.settings.geminiModel : GEMINI_DEFAULT_MODEL; }
