@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self'; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://api.anthropic.com; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -149,6 +149,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .lcard .t{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px}
 .lcard .t span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lcard .m{color:var(--muted);font-size:13px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lcard>.small{white-space:pre-line} /* çok satırlı not kartta satır satır görünsün */
 .chip{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
 .chip.ok{background:var(--ok-bg);color:var(--ok)}
 .chip.warn{background:var(--warn-bg);color:var(--warn)}
@@ -199,6 +200,30 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;font-variant-numeric:tabular-nums}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+/* El yazısı fiş okuma: kontrol ekranı. Sarı şerit = kontrol gerekir, kırmızı şerit = kod listede yok. */
+.slip-thumbs{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;flex:none} /* flex:none: kaydırmalı öğe .content içinde sıkışıp sıfıra inmesin */
+.slip-thumbs img{height:76px;width:auto;border-radius:8px;border:1px solid var(--line);cursor:pointer;flex:none;background:#fff}
+.slip-line .item-head{flex-wrap:nowrap}
+.slip-line .unitlbl{padding:0 4px 0 0}
+.slip-qty{width:64px;flex:none;text-align:center;font-weight:700;padding:6px 4px;min-height:40px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+.slip-qty::-webkit-outer-spin-button,.slip-qty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.slip-code{flex:1;min-width:0;padding:6px 10px;min-height:40px;text-transform:uppercase}
+.slip-line.check{border-left:5px solid var(--warn);background:var(--warn-bg)}
+.slip-line.miss{border-left:5px solid var(--danger);background:var(--danger-bg)}
+.slip-name{font-size:15px;line-height:1.35;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.slip-missing{color:var(--danger);font-weight:600;font-size:14px}
+.slip-cands{display:flex;flex-wrap:wrap;gap:6px}
+.slip-cands .btn{white-space:normal;text-align:left;font-weight:500;font-size:13px}
+.tag.ok{background:var(--ok);color:var(--accent-fg)}
+.tag.danger{background:var(--danger);color:var(--accent-fg)}
+.tag.warn{color:var(--accent-fg)} /* karanlık modda açık renkli etiket zemininde beyaz yazı okunmuyordu */
+.slip-busy{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:8px 0}
+.spinner{width:36px;height:36px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.slip-photo{width:100%;height:auto;border-radius:8px;background:#fff}
+.slip-raw{white-space:pre-wrap;font:13px/1.4 var(--mono);margin:6px 0 0;padding:8px 10px;background:var(--surface-2);border-radius:8px;max-height:40vh;overflow:auto}
+details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32px;display:flex;align-items:center}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:2s}}
 @media (prefers-reduced-motion:reduce){.item.flash{animation:none}}
 </style>
 </head>
@@ -241,6 +266,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
   <section class="view" id="view-lists" hidden>
     <header class="topbar">
       <h1>Listeler</h1>
+      <button id="btn-slip" class="btn" title="El yazısı fişi fotoğrafla, yeni liste oluştur">📄 Fiş</button>
       <button id="btn-new-list" class="btn primary">+ Yeni liste</button>
     </header>
     <div class="content">
@@ -276,10 +302,11 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
       </div>
       <div class="addbar">
         <div class="search-wrap">
-          <input id="ed-search" type="search" placeholder="Stok kodu veya ürün adı yazın" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="done">
+          <input id="ed-search" type="search" placeholder="Stok kodu veya ürün adı" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="done">
           <div id="ed-suggest" class="suggest" hidden></div>
         </div>
         <button id="ed-scan" class="btn primary" title="Barkod okut">📷 Tara</button>
+        <button id="ed-slip" class="btn" title="El yazısı fişi fotoğrafla, satırları bu listeye ekle">📄 Fiş</button>
       </div>
       <div id="ed-items" class="items"></div>
       <div id="ed-empty" class="empty">Henüz ürün yok. Barkod okutun ya da stok kodunu yazın.</div>
@@ -364,6 +391,25 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
         </div>
       </div>
       <div class="card">
+        <h2>El yazısı fiş okuma</h2>
+        <p class="small muted">Elle yazılmış sipariş fişinin fotoğrafı <b>telefonda, internet olmadan</b> okunur (açık kaynak Tesseract OCR motoru, ücretsiz). Satırlar (koli adedi + stok kodu), müşteri adı ve notlar çıkarılır; kontrol edip listeye aktarırsınız. Daha isabetli ücretsiz yol: telefonun kendi metin tanımasıyla (iPhone klavyesindeki "Metni Tara", Android'de Google Lens) okunan metni <b>Metin yapıştır</b> seçeneğiyle vermek.</p>
+        <label class="field"><span>OCR dili</span><select id="set-ocrlang"></select></label>
+        <details id="set-cloud">
+          <summary>Gelişmiş: bulut yapay zekâ ile okuma (isteğe bağlı, kapalı)</summary>
+          <div class="modal-body" style="margin-top:10px">
+            <p class="small muted">İnternet bağlantısı ve ücretli bir Anthropic API anahtarı gerektirir (console.anthropic.com → API Keys). Açıldığında fiş okuma menüsüne "Bulut yapay zekâ ile oku" seçeneği eklenir; fiş fotoğrafı ve ürün listesi yalnızca o seçenek kullanıldığında Anthropic'e gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
+            <label class="switch"><input type="checkbox" id="set-aicloud"><span>Bulut seçeneğini aç</span></label>
+            <div class="field"><span>API anahtarı</span>
+              <div class="row2"><input id="set-aikey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-ant-…"><button type="button" class="btn" id="set-aikey-toggle" style="flex:0 0 auto">Göster</button></div>
+            </div>
+            <label class="field"><span>Model</span><select id="set-aimodel"></select></label>
+            <label class="field"><span>Fiş düzeni açıklaması (isteğe bağlı)</span><textarea id="set-aihint" rows="2" placeholder="Örn. Müşteri adı sağ üstte yazar; kodlar M- ile başlar; koli adedi daire içine alınır."></textarea></label>
+            <div class="row"><button type="button" class="btn" id="set-aitest">Bağlantıyı test et</button></div>
+            <p id="set-aistatus" class="small muted"></p>
+          </div>
+        </details>
+      </div>
+      <div class="card">
         <h2>Bilgi</h2>
         <dl class="kv">
           <dt>Sürüm</dt><dd id="info-version"></dd>
@@ -371,7 +417,7 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
           <dt>Liste</dt><dd id="info-lists"></dd>
           <dt>Depolama</dt><dd id="info-storage"></dd>
         </dl>
-        <p class="small muted">Veriler bu telefonda şifreli saklanır. Uygulama hiçbir sunucuya veri göndermez.</p>
+        <p class="small muted">Veriler bu telefonda şifreli saklanır. Uygulama hiçbir sunucuya veri göndermez; fiş okuma da telefonda yapılır. (Yalnızca isteğe bağlı bulut seçeneği açılırsa fiş fotoğrafı o servise gider.)</p>
       </div>
       <div class="card">
         <h2>Tehlikeli bölge</h2>
@@ -397,6 +443,39 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
       </div>
     </div>
   </section>
+
+  <!-- FİŞ OKUMA: fotoğraftan çıkarılan satırların kontrolü -->
+  <section class="view" id="view-slip" hidden>
+    <header class="topbar">
+      <button id="sl-back" class="iconbtn" aria-label="Geri" title="Geri">‹</button>
+      <div class="topbar-title"><b>Fişi kontrol et</b><small id="sl-sub">&nbsp;</small></div>
+    </header>
+    <div class="content">
+      <div class="hint"><div>Fişten okunan satırlar aşağıda. <b>Sarı</b> satırlar kontrol ister, <b>kırmızı</b> satırların kodu ürün listesinde yok. Kodu düzeltin ya da öneriye dokunun; koli adetlerini de fotoğrafla karşılaştırın, sonra <b>Listeye aktar</b>.</div></div>
+      <div id="sl-warn" class="hint warn" hidden><div></div></div>
+      <div id="sl-thumbs" class="slip-thumbs" hidden></div>
+      <div class="row2">
+        <div class="field grow search-wrap">
+          <span>Müşteri</span>
+          <input id="sl-customer" placeholder="Müşteri adı" autocomplete="off" autocapitalize="words">
+          <div id="sl-customer-suggest" class="suggest" hidden></div>
+        </div>
+        <label class="field" style="flex:0 0 150px"><span>Tarih</span><input id="sl-date" type="date"></label>
+      </div>
+      <div id="sl-lines" class="items"></div>
+      <div id="sl-empty" class="empty" hidden>Fişte satır okunamadı. Fotoğrafı kontrol edip yeniden çekin ya da satırları elle ekleyin.</div>
+      <button type="button" class="btn block" id="sl-add">+ Satır ekle</button>
+      <label class="field"><span>Not (fişteki diğer yazılar)</span><textarea id="sl-note" rows="2" placeholder="Teslimat, ödeme, özel istek..."></textarea></label>
+      <details id="sl-rawbox" hidden><summary>Okunan ham metin</summary><pre id="sl-raw" class="slip-raw"></pre></details>
+    </div>
+    <footer class="actionbar">
+      <div class="summary"><b id="sl-count">0</b> satır<br><span id="sl-status"></span></div>
+      <button id="sl-retake" class="btn">📷 Yeniden</button>
+      <button id="sl-import" class="btn primary">Listeye aktar</button>
+    </footer>
+  </section>
+  <input type="file" id="slip-file-cam" accept="image/*" capture="environment" hidden>
+  <input type="file" id="slip-file-gal" accept="image/*" multiple hidden>
 
   <nav id="nav" class="bottomnav" hidden>
     <button data-view="lists"><span class="ico">☰</span>Listeler</button>
@@ -443,8 +522,8 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.1.0';
-const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js' };
+const APP_VERSION = '1.2.0';
+const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -541,15 +620,17 @@ const Crypto = {
 };
 
 /* ---------- durum ---------- */
-const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false };
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '' };
 let KEY = null, META = null, cur = null;
+let slip = null, slipMode = 'new'; // fiş okuma: kontrol ekranındaki geçici veri ve hedef ('new' | 'current')
+let pendingShareText = ''; // Android'de başka uygulamadan "Paylaş" ile gelen metin (manifest share_target), kilit açılınca işlenir
 const S = { products: [], productMeta: null, lists: [], settings: { ...DEF_SETTINGS } };
 let IDX = { byCode: new Map(), byBarcode: new Map() };
 
 function buildIndex() {
   IDX = { byCode: new Map(), byBarcode: new Map() };
   for (const p of S.products) {
-    p._fc = fold(p.code); p._fn = fold(p.name); p._bc = normBarcode(p.barcode);
+    p._fc = fold(p.code); p._fn = fold(p.name); p._bc = normBarcode(p.barcode); p._sk = skel(p.code);
     if (p._fc) IDX.byCode.set(p._fc, p);
     if (p._bc) IDX.byBarcode.set(p._bc, p);
   }
@@ -635,7 +716,7 @@ function tableModel(list) {
 }
 
 /* ---------- görünümler ---------- */
-const VIEWS = ['lock', 'setup', 'lists', 'editor', 'lookup', 'products', 'settings'];
+const VIEWS = ['lock', 'setup', 'lists', 'editor', 'lookup', 'products', 'settings', 'slip'];
 let curView = null;
 function showView(name) {
   curView = name;
@@ -650,9 +731,10 @@ function showView(name) {
 $$('#nav button').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
 /* ---------- pencere / onay ---------- */
-let modalClose = null;
-function openModal({ title, html, buttons = [], onClose }) {
+let modalClose = null, modalLocked = false;
+function openModal({ title, html, buttons = [], onClose, locked = false }) {
   closeModal();
+  modalLocked = !!locked; // kilitli pencere arka plana dokununca kapanmaz (uzun süren işler için)
   const m = $('#modal'); $('#modal-title').textContent = title; $('#modal-body').innerHTML = html;
   const act = $('#modal-actions'); act.innerHTML = '';
   let closed = false;
@@ -668,7 +750,7 @@ function openModal({ title, html, buttons = [], onClose }) {
   return close;
 }
 function closeModal() { if (modalClose) modalClose(); }
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && !modalLocked) closeModal(); });
 function confirmDlg(title, msg, { ok = 'Evet', danger = false } = {}) {
   return new Promise(res => {
     let r = false;
@@ -690,7 +772,7 @@ function askPin(title, msg) {
 /* ---------- kilit / kurulum ---------- */
 let fails = 0, lockUntil = 0;
 function lock() {
-  flushSaves(); KEY = null; cur = null;
+  flushSaves(); KEY = null; cur = null; slip = null;
   S.products = []; S.lists = []; S.productMeta = null; buildIndex();
   closeScanner(); closeModal();
   $('#lock-pin').value = ''; $('#lock-msg').hidden = true;
@@ -711,6 +793,7 @@ $('#lock-form').addEventListener('submit', async e => {
     $('#lock-pin').value = ''; msg.hidden = true;
     showView('lists');
     preloadScanner();
+    consumePendingShare();
   } catch (err) {
     fails++;
     if (fails >= 5) { lockUntil = Date.now() + 30000; fails = 0; }
@@ -738,6 +821,7 @@ $('#setup-form').addEventListener('submit', async e => {
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (_) { }
     showView('lists');
     preloadScanner();
+    consumePendingShare();
   } catch (err) { showErr(err); } finally { btn.disabled = false; }
 });
 async function wipeAll() {
@@ -1354,6 +1438,7 @@ function renderSettings() {
   $('#set-company').value = S.settings.company || '';
   $('#set-autolock').value = String(S.settings.autoLock ?? 5);
   const b = $(`input[name="set-basis"][value="${S.settings.priceBasis || 'koli'}"]`); if (b) b.checked = true;
+  renderAiSettings();
   $('#info-version').textContent = APP_VERSION;
   $('#info-products').textContent = S.products.length + ' ürün' + (S.productMeta ? ' (' + S.productMeta.fileName + ')' : '');
   $('#info-lists').textContent = S.lists.length + ' liste';
@@ -1428,6 +1513,759 @@ $('#set-restore-file').addEventListener('change', async e => {
   } catch (err) { showErr(err); }
 });
 
+/* ---------- el yazısı fiş okuma: fotoğraf veya metin → sipariş satırları ----------
+   Üç yol, hepsi aynı ayrıştırıcı (parseSlipText) ve aynı kontrol ekranından geçer:
+   1) Telefonda, çevrimdışı OCR (Tesseract, libs/tesseract) — varsayılan, ücretsiz, bağlantı gerektirmez.
+   2) Telefonun kendi metin tanımasından (iPhone "Metni Tara", Android Google Lens) yapıştırılan metin.
+   3) İsteğe bağlı ve kapalı gelen bulut yapay zekâ (Claude API) — yalnızca Ayarlar'dan açılırsa. */
+const OCR_DIR = new URL('libs/tesseract', location.href).href;
+// Testte kod ve rakamları İngilizce model daha iyi okudu (5→S, 3→53 hataları yok); Türkçe ile birlikte kullanmak notlardaki ç/ğ/ş'yi de korur.
+const OCR_LANGS = [['tur+eng', 'Türkçe + İngilizce (önerilen)'], ['eng', 'Yalnız İngilizce (kod ve rakam için en hızlı)'], ['tur', 'Yalnız Türkçe']];
+const AI_URL = 'https://api.anthropic.com/v1/messages';
+const AI_MODELS = [
+  ['claude-opus-5-5', 'Claude Opus 5.5 · en doğru okuma (önerilen)'],
+  ['claude-sonnet-5-5', 'Claude Sonnet 5.5 · hızlı ve ekonomik'],
+  ['claude-haiku-5-5', 'Claude Haiku 5.5 · en ucuz, daha çok hata'],
+  ['claude-fable-5-1', 'Claude Fable 5.1 · en güçlü model, daha pahalı']
+];
+const AI_DEFAULT_MODEL = 'claude-opus-5-5';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+function skel(s) { return fold(s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+/* benzer görünen karakterler: el yazısında 0/O, 1/I/L/7, 5/S, 2/Z, 8/B, 6/G ... karışır */
+const SIM = (() => {
+  const groups = ['0OD', '1IL7', '2Z', '5S', '6G', '8B', '4A', '9Q', 'UV', 'KX', 'CG', 'QO'];
+  const m = {};
+  for (const g of groups) for (const a of g) { m[a] = m[a] || new Set(); for (const b of g) if (a !== b) m[a].add(b); }
+  return m;
+})();
+function codeDist(a, b) { // Damerau-Levenshtein (OSA); benzer karakter değişimi ucuz, yer değiştirme orta
+  const n = a.length, m = b.length;
+  if (!n) return m; if (!m) return n;
+  const d = [];
+  for (let i = 0; i <= n; i++) { d[i] = new Array(m + 1); d[i][0] = i; }
+  for (let j = 0; j <= m; j++) d[0][j] = j;
+  for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
+    const ca = a[i - 1], cb = b[j - 1];
+    const sub = ca === cb ? 0 : (SIM[ca] && SIM[ca].has(cb) ? 0.3 : 1);
+    let v = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + sub);
+    if (i > 1 && j > 1 && ca === b[j - 2] && cb === a[i - 2]) v = Math.min(v, d[i - 2][j - 2] + 0.7);
+    d[i][j] = v;
+  }
+  return d[n][m];
+}
+function fuzzyCodes(raw, limit = 5) {
+  const q = skel(raw); if (q.length < 2) return [];
+  const out = [];
+  for (const p of S.products) {
+    const c = p._sk != null ? p._sk : (p._sk = skel(p.code));
+    if (!c || Math.abs(c.length - q.length) > 3) continue;
+    const score = codeDist(q, c) / Math.max(q.length, c.length);
+    if (score <= 0.45) out.push({ p, score });
+  }
+  out.sort((x, y) => x.score - y.score);
+  return out.slice(0, limit);
+}
+function looksLikeCode(s) {
+  s = String(s || '').trim();
+  if (s.length < 2 || s.length > 24 || /\s/.test(s)) return false;
+  if (IDX.byCode.has(fold(s))) return true;
+  if (/\d/.test(s)) return true;
+  return fuzzyCodes(s, 1).some(x => x.score <= 0.25);
+}
+/* satır metnini (OCR, yapıştırma ya da bulut) ortak yapıya çevirir: müşteri, tarih, satırlar, notlar */
+function parseSlipText(text, confs) {
+  const rows = String(text || '').replace(/\r/g, '').split('\n');
+  const out = { customer: null, date: null, lines: [], notes: [], warnings: [] };
+  const DATE_RE = /(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/;
+  const CODE = '([A-Za-z0-9ÇĞİÖŞÜçğıöşü][A-Za-z0-9ÇĞİÖŞÜçğıöşü\\-_./]*)';
+  const QTY = '(\\d+(?:[.,]\\d+)?)';
+  const UNIT = '(?:x|×|\\*|adet|koli|kl\\.?|k\\.?)';
+  // Adet ile kod arasında boşluk, birim sözcüğü (yalnızca ardından boşluk geliyorsa; "5 K-2001"in K'si birim değildir),
+  // ayraç ya da harfle başlayan kod olmalı; yoksa "1002" gibi yalın sayısal kodlar "10 × 02" diye bölünür.
+  const reQtyFirst = new RegExp('^\\s*' + QTY + '(?:\\s*' + UNIT + '(?=\\s)\\s*|\\s*[-:.]\\s*|\\s+|(?=[A-Za-zÇĞİÖŞÜçğıöşü]))' + CODE + '(.*)$', 'i');
+  // OCR 5/S, 0/O, 1/l/I, 2/Z, 8/B karıştırır: kısa, harf içeren adet belirteci + boşluk + kod ("S A-1001" → 5 A-1001)
+  const reQtyLoose = new RegExp('^\\s*([0-9SsOoIlZzB|&]{1,3})\\s+' + CODE + '(.*)$');
+  // Kod önce, sonra adet: arada boşluk ya da x/×/*/: olmalı; yoksa "A-1002" tek başına "A-100 × 2" diye bölünür.
+  const reCodeFirst = new RegExp('^\\s*' + CODE + '(?:\\s+|\\s*[x×*:]\\s*)' + QTY + '\\s*(?:adet|koli|kl\\.?|k\\.?)?\\s*$', 'i');
+  const digitize = t => String(t).replace(/[SsOoIlZzB|&]/g, c => ({ S: '5', s: '5', O: '0', o: '0', I: '1', l: '1', Z: '2', z: '2', B: '8', '|': '1', '&': '8' }[c]));
+  const strong = s => !!s && !/\s/.test(s) && (IDX.byCode.has(fold(s)) || fuzzyCodes(s, 1).some(x => x.score <= 0.2)); // katalogda kesin ya da çok yakın karşılığı var
+  const confAt = i => { const c = confs ? Number(confs[i]) : NaN; return !Number.isFinite(c) ? 'high' : c >= 80 ? 'high' : c >= 55 ? 'medium' : 'low'; };
+  const lower = (a, b) => ['high', 'medium', 'low'].indexOf(a) >= ['high', 'medium', 'low'].indexOf(b) ? a : b;
+  // OCR'ın eklediği parantez, tırnak ve benzeri işaretler kodun başına yapışmasın ("2 (C-3001")
+  const clean = s => String(s).replace(/[()\[\]{}"'`«»<>]/g, ' ').replace(/\s+/g, ' ').trim();
+  const cleanNote = n => n && n.trim() ? n.trim().replace(/^[-–:;,.]+\s*/, '') : '';
+  // Kod ile açıklamayı ayırır. "A 1001 acil" gibi boşlukla bölünmüş kodları katalogla birleştirerek dener.
+  const splitCode = rest => {
+    const toks = clean(rest).split(' ').filter(Boolean); if (!toks.length) return null;
+    if (strong(toks[0])) return { code: toks[0], note: toks.slice(1).join(' ') }; // ilk parça zaten katalogda: birleştirme ("A-1001 3 B-2002" → A-10013 olmasın)
+    for (let n = 2; n <= Math.min(3, toks.length); n++) { const j = toks.slice(0, n).join(''); if (strong(j)) return { code: j, note: toks.slice(n).join(' ') }; }
+    return looksLikeCode(toks[0]) ? { code: toks[0], note: toks.slice(1).join(' ') } : null;
+  };
+  const item = (i, depth, qty, qtyRaw, code, note, capConf) => {
+    const rec = { qty, qty_raw: qtyRaw, code_raw: code, code: null, confidence: capConf ? lower(confAt(i), capConf) : confAt(i), note: null };
+    out.lines.push(rec);
+    note = cleanNote(note);
+    // aynı satırda ikinci bir kalem olabilir ("5 A-1001 3 B-2002"): açıklama kısmı da kalem gibi okunuyorsa ayrı satır yap
+    if (note && depth < 3 && reQtyFirst.test(note) && tryItem(note, i, depth + 1)) note = '';
+    rec.note = note || null;
+  };
+  // yalnızca kalem kalıpları; kalem ürettiyse true
+  const tryItem = (line, i, depth) => {
+    let m = reQtyFirst.exec(line);
+    if (m) { const sc = splitCode(m[2] + m[3]); if (sc) { item(i, depth, parseNum(m[1]), m[1], sc.code, sc.note); return true; } }
+    m = reCodeFirst.exec(line);
+    if (m && looksLikeCode(m[1])) { item(i, depth, parseNum(m[2]), m[2], m[1], ''); return true; }
+    m = reQtyLoose.exec(line);
+    if (m && /[A-Za-z|&]/.test(m[1]) && /^\d+$/.test(digitize(m[1])) && looksLikeCode(m[2])) {
+      const q = digitize(m[1]); // "S" → 5 (orta güven); "5S" → 55 olabilir de olmayabilir de (düşük güven)
+      item(i, depth, parseNum(q), m[1], m[2], m[3], q.length >= 2 ? 'low' : 'medium'); return true;
+    }
+    // adet belirteci tanınmamış bir işaret ya da rakama çevrilemeyen 1-2 harf ("& M-5010", "g A-1001") ama kod katalogda var: adet 0, düşük güven; kullanıcı girer
+    m = /^\s*(\S{1,2})\s+(\S+)(.*)$/.exec(line);
+    if (m && !/\d/.test(m[1]) && !/^[A-Za-z0-9ÇĞİÖŞÜçğıöşü]{2}$/.test(m[1]) && strong(m[2])) { item(i, depth, null, m[1], m[2], m[3], 'low'); return true; }
+    if (/^\d+$/.test(line) && line.length >= 3) { // boşluksuz "51001": adet + kod ayrımını kataloğa göre dene
+      let hit = null;
+      for (let k = 1; k < line.length && !hit; k++) { const p = IDX.byCode.get(fold(line.slice(k))); if (p) hit = { qty: parseNum(line.slice(0, k)), code: p.code }; }
+      if (hit) { item(i, depth, hit.qty, String(hit.qty), hit.code, ''); return true; }
+    }
+    if (looksLikeCode(line) && strong(line)) { item(i, depth, 1, '', line, '', 'medium'); return true; }
+    return false;
+  };
+  const noteWords = /^(not|notlar|siparis|fis|tarih|musteri|firma|bayi|toplam|imza|adres)\b|teslim|nakit|odeme|acil|\btel\b|havale|fatura|iskonto/;
+  const titleOnly = /^(siparis( fisi| formu)?|fis|sipari[sş] fi[sş]i)$/;
+  const nameLike = line => { const f = fold(line); return line.length >= 3 && line.length <= 60 && (f.match(/[a-z]/g) || []).length >= 3 && (f.match(/\d/g) || []).length < 7 && !noteWords.test(f); };
+  for (let i = 0; i < rows.length; i++) {
+    let line = clean(rows[i]); if (!line) continue;
+    // adet ile kod ayrı satırlara düşmüş olabilir ("5" / "A-1001"): sonraki satırla birleştirmeyi dene
+    if (/^\d{1,3}$/.test(line) && i + 1 < rows.length) {
+      const next = clean(rows[i + 1]); const m2 = next ? reQtyFirst.exec(line + ' ' + next) : null;
+      const sc = m2 ? splitCode(m2[2] + m2[3]) : null;
+      if (sc && strong(sc.code)) { line = line + ' ' + next; i++; }
+    }
+    const dm = DATE_RE.exec(line);
+    if (dm && !out.date && !line.replace(DATE_RE, '').replace(/tarih|date|[:.\-\s]/gi, '').length) {
+      let y = dm[3]; if (y.length === 2) y = '20' + y;
+      out.date = `${y}-${dm[2].padStart(2, '0')}-${dm[1].padStart(2, '0')}`; continue;
+    }
+    if (tryItem(line, i, 0)) continue;
+    if (titleOnly.test(fold(line))) continue; // "SİPARİŞ FİŞİ" gibi başlıklar ne müşteri ne not
+    if (!out.customer && !out.lines.length && nameLike(line)) { out.customer = line; continue; }
+    const noteLine = line.replace(/^[-–•*·]+\s*/, ''); if (noteLine) out.notes.push(noteLine); // madde işaretlerini at
+  }
+  return { customer: out.customer, date: out.date, lines: out.lines, notes: out.notes.join('; '), warnings: out.warnings };
+}
+
+/* ---- kontrol ekranı ---- */
+function slipLine(partial = {}) {
+  return Object.assign({ id: uid(), qty: 1, code: '', p: null, raw: '', conf: 'high', status: 'miss', cands: [], note: '' }, partial);
+}
+function resolveSlipLine(l) {
+  const raw = String(l.code_raw || '').trim();
+  const qn = l.qty == null ? null : Number(l.qty);
+  const qtyFromRaw = parseNum(l.qty_raw);
+  const qtyMissing = !(Number.isFinite(qn) && qn >= 0) && qtyFromRaw == null && String(l.qty_raw || '').trim() !== '';
+  const qty = Number.isFinite(qn) && qn >= 0 ? qn : qtyMissing ? 0 : (qtyFromRaw ?? 1);
+  const conf = qtyMissing ? 'low' : ['high', 'medium', 'low'].includes(l.confidence) ? l.confidence : 'low';
+  let p = null, cands = [];
+  if (l.code) p = IDX.byCode.get(fold(l.code)) || null;
+  if (!p && raw) p = findExact(raw);
+  if (!p && raw) { const sk = skel(raw); const same = sk.length >= 2 ? S.products.filter(x => x._sk === sk) : []; if (same.length === 1) p = same[0]; } // yalnızca tire/nokta farkı ("A1001" = "A-1001")
+  let status = p ? (conf === 'high' ? 'ok' : 'check') : 'miss';
+  if (!p && raw) {
+    const fz = fuzzyCodes(raw, 5);
+    if (fz.length && fz[0].score <= 0.2 && (fz.length === 1 || fz[1].score - fz[0].score >= 0.1)) { p = fz[0].p; status = 'check'; cands = fz.slice(1, 4).map(x => x.p); }
+    else cands = fz.map(x => x.p);
+    if (!cands.length && !p) cands = search(raw, 5);
+  }
+  return slipLine({ qty, code: p ? p.code : (l.code || raw), p, raw, conf, status, cands, note: String(l.note || '').trim(), qtyMissing, qtyRaw: String(l.qty_raw || '').trim() });
+}
+function openSlipReview(data, mode, images, meta) {
+  const lines = (Array.isArray(data.lines) ? data.lines : []).map(resolveSlipLine);
+  slip = {
+    mode, images: images || [], lines, meta: meta || {},
+    customer: String(data.customer || '').trim(),
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(data.date || '')) ? data.date : '',
+    note: String(data.notes || '').trim(),
+    warnings: Array.isArray(data.warnings) ? data.warnings.filter(Boolean).map(String) : []
+  };
+  if (mode === 'current' && cur && cur.customer && !slip.customer) slip.customer = cur.customer;
+  if (!S.products.length) slip.warnings.unshift('Ürün listesi yüklü değil: kodlar eşleştirilemez, satırlar Excel dışı olarak aktarılır. Ürünler sekmesinden Excel yükleyin.');
+  renderSlip(); showView('slip');
+  $('#view-slip .content').scrollTop = 0;
+}
+function renderSlip() {
+  $('#sl-customer').value = slip.customer; $('#sl-date').value = slip.date; $('#sl-note').value = slip.note;
+  const w = $('#sl-warn');
+  if (slip.warnings.length) { w.firstElementChild.innerHTML = '<b>Uyarılar:</b><br>' + slip.warnings.map(esc).join('<br>'); w.hidden = false; } else w.hidden = true;
+  const th = $('#sl-thumbs');
+  th.innerHTML = slip.images.map((im, i) => `<img src="${im.dataUrl}" data-i="${i}" alt="Fiş fotoğrafı ${i + 1}" title="Büyüt">`).join('');
+  th.hidden = !slip.images.length;
+  const raw = $('#sl-rawbox'); raw.hidden = !slip.meta.rawText; if (slip.meta.rawText) { $('#sl-raw').textContent = slip.meta.rawText; raw.open = false; }
+  const eng = slip.meta.engine === 'cloud' ? 'Bulut yapay zekâ' : slip.meta.engine === 'text' ? 'Yapıştırılan metin' : 'Telefonda OCR';
+  $('#sl-sub').textContent = `${eng} · ${slip.mode === 'current' ? 'mevcut listeye eklenecek' : 'yeni liste oluşturulacak'}`;
+  hideSlipCustomerSuggest();
+  renderSlipLines();
+}
+function slipStatusHTML(l) {
+  if (l.p) return l.status === 'ok' ? '<span class="tag ok">✓ eşleşti</span>' : '<span class="tag warn">kontrol edin</span>';
+  return '<span class="tag danger">listede yok</span>';
+}
+function slipNameHTML(l) {
+  if (l.p) return esc(l.p.name) + (l.p.unit ? ` <span class="muted small">· koli içi ${esc(fmtQty(l.p.unit))}</span>` : '');
+  return l.code.trim() ? '<span class="slip-missing">Bu kod ürün listesinde yok. Kodu düzeltin, öneriye dokunun ya da Excel dışı olarak aktarılsın.</span>' : '<span class="muted">Stok kodu yazın.</span>';
+}
+function slipRawHTML(l) {
+  const bits = [];
+  if (l.qtyMissing) bits.push(`<b>Koli adedi okunamadı</b> (fişte "${esc(l.qtyRaw)}"), adedi girin; 0 kalırsa aktarılmaz`);
+  if (l.raw && fold(l.raw) !== fold(l.code) && (!l.p || fold(l.raw) !== fold(l.p.code))) bits.push(`Fişte okunan: <b>${esc(l.raw)}</b>`);
+  if (l.conf !== 'high') bits.push(l.conf === 'low' ? 'okuma şüpheli, fotoğrafla karşılaştırın' : 'küçük şüphe var, fotoğrafla karşılaştırın');
+  return bits.length ? `<div class="small muted">${bits.join(' · ')}</div>` : '';
+}
+function slipCandsHTML(l) {
+  if (!l.cands.length) return '';
+  return `<div class="slip-cands">${l.cands.map(p => `<button type="button" class="btn sm" data-pick="${esc(p.code)}"><b>${esc(p.code)}</b> ${esc(p.name)}</button>`).join('')}</div>`;
+}
+function slipLineHTML(l, i) {
+  return `<div class="item slip-line ${l.p ? l.status : 'miss'}" data-id="${l.id}">
+    <div class="item-head"><span class="muted small">${i + 1}.</span>
+      <input class="slip-qty" data-f="qty" type="number" inputmode="decimal" min="0" step="1" value="${esc(l.qty)}" aria-label="Koli"><span class="unitlbl">koli</span>
+      <input class="slip-code code" data-f="code" value="${esc(l.code)}" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false" aria-label="Stok kodu" placeholder="Stok kodu">
+      <button type="button" class="iconbtn" data-act="del" aria-label="Satırı sil" title="Sil">✕</button></div>
+    <div class="slip-name"><span data-role="name">${slipNameHTML(l)}</span><span data-role="status">${slipStatusHTML(l)}</span></div>
+    <div data-role="raw">${slipRawHTML(l)}</div>
+    <div data-role="cands">${slipCandsHTML(l)}</div>
+    ${l.note ? `<div class="small">Satır notu: ${esc(l.note)}</div>` : ''}</div>`;
+}
+function renderSlipLines() {
+  $('#sl-lines').innerHTML = slip.lines.map(slipLineHTML).join('');
+  $('#sl-empty').hidden = slip.lines.length > 0;
+  renderSlipSummary();
+}
+function renderSlipSummary() {
+  const n = slip.lines.length, miss = slip.lines.filter(l => !l.p).length, chk = slip.lines.filter(l => l.p && l.status !== 'ok').length, zero = slip.lines.filter(l => !(Number(l.qty) > 0)).length;
+  $('#sl-count').textContent = n;
+  $('#sl-status').textContent = miss || chk || zero ? [chk ? chk + ' kontrol' : '', miss ? miss + ' listede yok' : '', zero ? zero + ' adet 0' : ''].filter(Boolean).join(' · ') : (n ? 'hepsi eşleşti' : '');
+}
+function patchSlipLine(l) {
+  const el = $(`#sl-lines .slip-line[data-id="${l.id}"]`); if (!el) return;
+  el.className = `item slip-line ${l.p ? l.status : 'miss'}`;
+  $('[data-role="name"]', el).innerHTML = slipNameHTML(l);
+  $('[data-role="status"]', el).innerHTML = slipStatusHTML(l);
+  $('[data-role="raw"]', el).innerHTML = slipRawHTML(l);
+  $('[data-role="cands"]', el).innerHTML = slipCandsHTML(l);
+  renderSlipSummary();
+}
+$('#sl-lines').addEventListener('input', e => {
+  const inp = e.target, f = inp.dataset.f; if (!f || !slip) return;
+  const row = inp.closest('.slip-line'); const l = slip.lines.find(x => x.id === row.dataset.id); if (!l) return;
+  if (f === 'qty') { const v = parseNum(inp.value); l.qty = v != null && v >= 0 ? v : 0; if (l.qtyMissing && l.qty > 0) { l.qtyMissing = false; if (l.p) l.status = 'check'; patchSlipLine(l); } else renderSlipSummary(); return; }
+  const v = inp.value.trim(); l.code = v;
+  l.p = v ? findExact(v) : null;
+  l.status = l.p ? 'ok' : 'miss'; l.conf = 'high';
+  l.cands = l.p || !v ? [] : search(v, 5);
+  patchSlipLine(l);
+});
+$('#sl-lines').addEventListener('click', e => {
+  const row = e.target.closest('.slip-line'); if (!row || !slip) return;
+  const l = slip.lines.find(x => x.id === row.dataset.id); if (!l) return;
+  const pick = e.target.closest('[data-pick]');
+  if (pick) {
+    const p = IDX.byCode.get(fold(pick.dataset.pick)); if (!p) return;
+    l.p = p; l.code = p.code; l.status = 'ok'; l.conf = 'high'; l.cands = [];
+    $('[data-f="code"]', row).value = p.code; patchSlipLine(l); return;
+  }
+  if (e.target.closest('[data-act="del"]')) { slip.lines = slip.lines.filter(x => x !== l); renderSlipLines(); }
+});
+$('#sl-add').addEventListener('click', () => {
+  if (!slip) return;
+  slip.lines.push(slipLine()); renderSlipLines();
+  const rows = $$('#sl-lines .slip-line'); const last = rows[rows.length - 1];
+  if (last) { $('[data-f="code"]', last).focus(); last.scrollIntoView({ block: 'nearest' }); }
+});
+$('#sl-thumbs').addEventListener('click', e => {
+  const img = e.target.closest('img'); if (!img || !slip) return;
+  const im = slip.images[+img.dataset.i]; if (!im) return;
+  openModal({ title: 'Fiş fotoğrafı', html: `<img class="slip-photo" src="${im.dataUrl}" alt="Fiş">`, buttons: [{ label: 'Kapat' }] });
+});
+$('#sl-customer').addEventListener('input', e => { if (slip) slip.customer = e.target.value.trim(); renderSlipCustomerSuggest(); });
+$('#sl-customer').addEventListener('focus', renderSlipCustomerSuggest);
+$('#sl-customer').addEventListener('blur', () => setTimeout(hideSlipCustomerSuggest, 200));
+$('#sl-date').addEventListener('change', e => { if (slip) slip.date = e.target.value; });
+$('#sl-note').addEventListener('input', e => { if (slip) slip.note = e.target.value; });
+function renderSlipCustomerSuggest() {
+  const box = $('#sl-customer-suggest'); const q = fold($('#sl-customer').value);
+  const names = customerNames().filter(n => fold(n) !== q && (!q || fold(n).includes(q))).slice(0, 8);
+  if (!names.length) { box.hidden = true; return; }
+  box.innerHTML = names.map(n => `<button type="button" class="sug" data-name="${esc(n)}">${esc(n)}</button>`).join(''); box.hidden = false;
+}
+function hideSlipCustomerSuggest() { $('#sl-customer-suggest').hidden = true; }
+$('#sl-customer-suggest').addEventListener('mousedown', e => e.preventDefault());
+$('#sl-customer-suggest').addEventListener('click', e => {
+  const b = e.target.closest('.sug'); if (!b || !slip) return;
+  slip.customer = b.dataset.name; $('#sl-customer').value = slip.customer; hideSlipCustomerSuggest();
+});
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) hideSlipCustomerSuggest(); });
+function leaveSlip() {
+  const mode = slip && slip.mode; slip = null;
+  if (mode === 'current' && cur) { renderEditor(); showView('editor'); } else showView('lists');
+}
+$('#sl-back').addEventListener('click', async () => {
+  if (!slip) { showView('lists'); return; }
+  if (slip.lines.length && !await confirmDlg('Okunan fiş silinsin mi?', 'Bu ekrandaki satırlar ve düzeltmeler kaybolur; fişi yeniden okutmanız gerekir.', { ok: 'Sil', danger: true })) return;
+  leaveSlip();
+});
+$('#sl-retake').addEventListener('click', () => startSlipCapture(slip ? slip.mode : 'new'));
+async function importSlip() {
+  if (!slip) return;
+  const lines = slip.lines.filter(l => (Number(l.qty) || 0) > 0 && (l.p || l.code.trim()));
+  if (!lines.length) { toast('Aktarılacak satır yok (koli adedi 0 olan satırlar alınmaz)', 3000); return; }
+  const missing = lines.filter(l => !l.p);
+  if (missing.length && !await confirmDlg('Listede olmayan satırlar var', `${missing.length} satırın stok kodu ürün listesinde bulunamadı. Bunlar <b>Excel dışı</b> olarak eklenecek. Devam edilsin mi?`, { ok: 'Devam' })) return;
+  let list = slip.mode === 'current' && cur ? cur : null;
+  if (!list) { list = { id: uid(), customer: '', date: todayISO(), note: '', items: [], discount: 0, showPrices: false, createdAt: Date.now(), updatedAt: Date.now() }; S.lists.unshift(list); }
+  cur = list;
+  const customer = $('#sl-customer').value.trim(); if (customer && (!list.customer || slip.mode === 'new')) list.customer = customer;
+  const date = $('#sl-date').value; if (date && slip.mode === 'new') list.date = date;
+  const notes = []; const n0 = $('#sl-note').value.trim(); if (n0) notes.push(n0);
+  for (const l of lines) {
+    const qty = Number(l.qty) || 0;
+    if (l.p) {
+      const it = list.items.find(i => !i.custom && i.code === l.p.code);
+      if (it) it.qty = (Number(it.qty) || 0) + qty;
+      else list.items.push({ id: uid(), code: l.p.code, name: l.p.name, barcode: l.p.barcode || '', unit: l.p.unit ?? null, price: l.p.price ?? null, qty, custom: false });
+    } else {
+      const code = l.code.trim();
+      list.items.push({ id: uid(), code, name: l.raw && fold(l.raw) !== fold(code) ? `${code} (fişte: ${l.raw})` : code, barcode: '', unit: null, price: null, qty, custom: true });
+    }
+    if (l.note) notes.push(`${l.p ? l.p.code : l.code.trim()}: ${l.note}`);
+  }
+  if (notes.length) list.note = (list.note ? list.note + '\n' : '') + notes.join('\n');
+  touch();
+  const n = lines.length; slip = null;
+  openList(list);
+  toast(`${n} satır aktarıldı${missing.length ? ', ' + missing.length + ' satır Excel dışı' : ''}`, 3200);
+}
+$('#sl-import').addEventListener('click', importSlip);
+
+/* ---- giriş: fotoğraf çek / galeriden seç / metin yapıştır / (isteğe bağlı) bulut ---- */
+let slipRoute = 'local';
+function cloudReady() { return !!S.settings.aiCloud && !!(S.settings.aiKey || '').trim(); }
+function startSlipCapture(mode) {
+  if (mode === 'current' && !cur) return;
+  slipMode = mode; slipRoute = 'local';
+  warmOcr();
+  openModal({
+    title: 'El yazısı fişi oku',
+    html: `<p class="small muted">Fişin tamamı kadraja girsin; yazı net, düz ve iyi aydınlatılmış olsun. Okuma telefonda yapılır, internet gerekmez.</p>
+      <div class="menu-list">
+        <button type="button" class="btn primary bigbtn" id="slip-cam">📷 Fotoğraf çek</button>
+        <button type="button" class="btn" id="slip-gal">🖼 Galeriden seç</button>
+        <button type="button" class="btn" id="slip-txt">⌨️ Metin yapıştır${isIOS ? ' / "Metni Tara"' : ' (Google Lens)'}</button>
+        ${cloudReady() ? '<button type="button" class="btn" id="slip-cloud">☁️ Bulut yapay zekâ ile oku (internet, ücretli)</button>' : ''}
+      </div>
+      <p class="small muted">En isabetli ücretsiz yol: ${isIOS ? 'metin kutusuna dokunup klavyedeki <b>Metni Tara</b> (kamera) düğmesiyle fişi okutmak.' : 'kamera veya Google Fotoğraflar\'da <b>Google Lens</b> → <b>Metni kopyala</b>, sonra "Metin yapıştır".'}</p>`,
+    buttons: [{ label: 'Vazgeç' }]
+  });
+  $('#slip-cam').addEventListener('click', () => { closeModal(); $('#slip-file-cam').click(); });
+  $('#slip-gal').addEventListener('click', () => { closeModal(); $('#slip-file-gal').click(); });
+  $('#slip-txt').addEventListener('click', () => { closeModal(); openSlipTextDialog(); });
+  const cb = $('#slip-cloud'); if (cb) cb.addEventListener('click', () => { closeModal(); slipRoute = 'cloud'; $('#slip-file-gal').click(); });
+}
+function onSlipFiles(e) {
+  const files = Array.from(e.target.files || []); e.target.value = '';
+  const route = slipRoute; slipRoute = 'local';
+  if (!files.length) return;
+  if (route === 'cloud') runSlipCloud(files); else runSlipLocal(files);
+}
+$('#slip-file-cam').addEventListener('change', onSlipFiles);
+$('#slip-file-gal').addEventListener('change', onSlipFiles);
+$('#btn-slip').addEventListener('click', () => startSlipCapture('new'));
+$('#ed-slip').addEventListener('click', () => startSlipCapture('current'));
+function consumePendingShare() {
+  if (!pendingShareText) return;
+  const t = pendingShareText; pendingShareText = ''; slipMode = 'new';
+  setTimeout(() => { openSlipTextDialog(t); toast('Paylaşılan metin alındı; satırlara dönüştürün', 3000); }, 150);
+}
+function openSlipTextDialog(pre = '') {
+  openModal({
+    title: 'Fiş metnini yapıştırın',
+    html: `<p class="small muted">${isIOS
+      ? 'Aşağıdaki kutuya dokunun; klavyede beliren <b>Metni Tara</b> (kamera simgesi) ile fişi okutun. Ya da Fotoğraflar\'da fişteki metni seçip kopyalayın ve buraya yapıştırın.'
+      : 'Kamera uygulamasında veya Google Fotoğraflar\'da <b>Google Lens</b> ile fişi açın, <b>Metni kopyala</b> deyin ve buraya yapıştırın. Samsung klavyedeki "Metin çıkar" da kullanılabilir.'} Her satırda koli adedi ve stok kodu olmalı.</p>
+      <textarea id="slip-text" rows="9" placeholder="Örn.&#10;Yılmaz Market&#10;5 A-1001&#10;12 B-2002&#10;cuma teslim" autocorrect="off" spellcheck="false">${esc(pre)}</textarea>`,
+    buttons: [{ label: 'Vazgeç' }, {
+      label: 'Satırlara dönüştür', cls: 'primary', onClick: close => {
+        const t = $('#slip-text').value; if (!t.trim()) { $('#slip-text').focus(); return; }
+        close(); openSlipReview(parseSlipText(t, null), slipMode, [], { engine: 'text', rawText: t });
+      }
+    }]
+  });
+  setTimeout(() => $('#slip-text').focus(), 60);
+}
+
+/* ---- fotoğraf hazırlama ---- */
+function loadImageFile(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Fotoğraf açılamadı (' + (file.name || 'dosya') + '). JPEG veya PNG seçin.')); };
+    img.src = url;
+  });
+}
+function drawScaled(img, maxEdge, maxScale = 1) {
+  const W = img.naturalWidth, H = img.naturalHeight;
+  if (!W || !H) throw new Error('Fotoğraf okunamadı');
+  const s = Math.min(maxScale, maxEdge / Math.max(W, H));
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(W * s)); c.height = Math.max(1, Math.round(H * s));
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+function jpegDataUrl(canvas, quality = 0.85, maxLen = 4.5e6) {
+  let q = quality, out = canvas.toDataURL('image/jpeg', q);
+  while (out.length > maxLen && q > 0.45) { q -= 0.1; out = canvas.toDataURL('image/jpeg', q); }
+  return out;
+}
+/* OCR için: gri + yerel uyarlanabilir eşikleme (Bradley). Gölgeli, eğik ışıklı kâğıtta düz eşiklemeden çok daha iyi. */
+function binarize(canvas, T = 0.88) {
+  const w = canvas.width, h = canvas.height, ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const id = ctx.getImageData(0, 0, w, h), d = id.data, n = w * h;
+  const g = new Uint8Array(n);
+  for (let i = 0, j = 0; j < n; i += 4, j++) g[j] = (d[i] * 77 + d[i + 1] * 151 + d[i + 2] * 28) >> 8;
+  const W1 = w + 1, ii = new Uint32Array(W1 * (h + 1));
+  for (let y = 1; y <= h; y++) { let row = 0; const o = y * W1, oi = (y - 1) * w, op = (y - 1) * W1; for (let x = 1; x <= w; x++) { row += g[oi + x - 1]; ii[o + x] = ii[op + x] + row; } }
+  const r = Math.max(8, Math.round(Math.max(w, h) / 60));
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
+      const cnt = (x1 - x0 + 1) * (y1 - y0 + 1);
+      const sum = ii[(y1 + 1) * W1 + (x1 + 1)] - ii[y0 * W1 + (x1 + 1)] - ii[(y1 + 1) * W1 + x0] + ii[y0 * W1 + x0];
+      const v = g[y * w + x] * cnt < sum * T ? 0 : 255;
+      const i = (y * w + x) * 4; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+  return canvas;
+}
+async function preprocessForOcr(file) {
+  const img = await loadImageFile(file);
+  const preview = jpegDataUrl(drawScaled(img, 1400), 0.8);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const long = Math.max(W, H) > 1.3 * Math.min(W, H) ? 2400 : 2000; // uzun fişte daha çok satır var: biraz daha yüksek çözünürlük
+  const canvas = binarize(drawScaled(img, long, 2.5));
+  return { canvas, dataUrl: preview, w: canvas.width, h: canvas.height };
+}
+function rotateCanvas(c, deg) {
+  const r = document.createElement('canvas'); r.width = c.height; r.height = c.width;
+  const ctx = r.getContext('2d'); ctx.translate(r.width / 2, r.height / 2); ctx.rotate(deg * Math.PI / 180); ctx.drawImage(c, -c.width / 2, -c.height / 2);
+  return r;
+}
+function withTimeout(p, ms, msg) { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(msg)), ms); })]).finally(() => clearTimeout(t)); }
+async function prepareImage(file, maxEdge = 2240) { // bulut yolu: renkli, yüksek çözünürlüklü JPEG
+  const img = await loadImageFile(file);
+  const c = drawScaled(img, maxEdge);
+  const dataUrl = jpegDataUrl(c, 0.88);
+  return { dataUrl, b64: dataUrl.slice(dataUrl.indexOf(',') + 1), w: c.width, h: c.height };
+}
+
+/* ---- yol 1: telefonda OCR (Tesseract) ---- */
+let ocrWorkerP = null, ocrWorkerLang = '', ocrIdleTimer = null, ocrProgressCb = null, ocrParamOverride = null, ocrInitOverride = null;
+const OCR_PARAMS = { tessedit_pageseg_mode: '6', preserve_interword_spaces: '1', user_defined_dpi: '300' };
+const OCR_INIT = {}; // başlatma parametreleri (dil verisiyle birlikte yüklenir)
+function ocrLangSetting() { return OCR_LANGS.some(l => l[0] === S.settings.ocrLang) ? S.settings.ocrLang : 'tur+eng'; }
+// Tek bir motor (worker) tutulur; aynı anda iki istek gelse de bir kez yüklenir. Dil değişince yenisi kurulur.
+function getOcrWorker() {
+  const lang = ocrLangSetting();
+  if (ocrWorkerP && ocrWorkerLang === lang) return ocrWorkerP;
+  dropOcrWorker();
+  ocrWorkerLang = lang;
+  const p = (async () => {
+    try {
+      await loadScript(LIBS.ocr);
+      const w = await withTimeout(Tesseract.createWorker(lang, 1, {
+        workerPath: OCR_DIR + '/worker.min.js', corePath: OCR_DIR, langPath: OCR_DIR,
+        workerBlobURL: false, gzip: true, cacheMethod: 'none',
+        logger: m => { if (ocrProgressCb) ocrProgressCb(m); },
+        errorHandler: e => console.error('OCR', e)
+      }, { ...OCR_INIT, ...(ocrInitOverride || {}) }), 180000, 'zaman aşımı');
+      await w.setParameters({ ...OCR_PARAMS, ...(ocrParamOverride || {}) });
+      return w;
+    } catch (e) {
+      if (ocrWorkerP === p) ocrWorkerP = null;
+      throw new Error('OCR motoru yüklenemedi (' + (e && e.message || e) + '). İnternet açıkken bir kez deneyin; sonra çevrimdışı da çalışır.');
+    }
+  })();
+  ocrWorkerP = p;
+  return p;
+}
+function dropOcrWorker() { const p = ocrWorkerP; ocrWorkerP = null; clearTimeout(ocrIdleTimer); if (p) p.then(w => w.terminate()).catch(() => { }); }
+function releaseOcrWorkerLater(ms = 3 * 60000) { clearTimeout(ocrIdleTimer); ocrIdleTimer = setTimeout(dropOcrWorker, ms); }
+function warmOcr() { getOcrWorker().then(() => releaseOcrWorkerLater()).catch(() => { }); } // menü açılırken motoru yükle: fotoğraf çekilince bekleme kısalır
+function ocrLines(data) {
+  const out = [];
+  for (const b of (data && data.blocks) || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) {
+    const t = String(l.text || '').replace(/\s+/g, ' ').trim(); if (!t) continue;
+    // satır güveni = satırın ve en zayıf sözcüğünün güveninden küçük olanı (tek bir şüpheli rakam bile satırı "kontrol edin" yapar)
+    let conf = Number(l.confidence) || 0;
+    for (const w of l.words || []) { const c = Number(w.confidence); if (Number.isFinite(c) && String(w.text || '').trim()) conf = Math.min(conf, c); }
+    out.push({ text: t, conf, y: l.bbox ? l.bbox.y0 : 0, x: l.bbox ? l.bbox.x0 : 0 });
+  }
+  if (!out.length && data && data.text) return String(data.text).split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ text, conf: Number(data.confidence) || 0, y: i, x: 0 }));
+  return out.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+const OCR_STATUS = { 'loading tesseract core': 'OCR motoru yükleniyor', 'initializing tesseract': 'OCR motoru başlatılıyor', 'loading language traineddata': 'Dil verisi yükleniyor', 'loaded language traineddata': 'Dil verisi yüklendi', 'initializing api': 'Hazırlanıyor', 'initialized api': 'Hazır', 'recognizing text': 'Yazı tanınıyor' };
+// Bir fotoğrafı okur; hiç kalem çıkmazsa fiş yan durmuş olabilir diye 90° döndürüp yeniden dener, en iyi sonucu döndürür.
+async function recognizeSlipCanvas(worker, canvas, msg) {
+  const run = async cv => { const { data } = await withTimeout(worker.recognize(cv, {}, { text: true, blocks: true }), 150000, 'Okuma çok uzun sürdü. Fotoğrafı daha yakından ve net çekip tekrar deneyin.'); return ocrLines(data); };
+  const itemCount = ls => parseSlipText(ls.map(l => l.text).join('\n'), ls.map(l => l.conf)).lines.length;
+  let best = await run(canvas); let bestN = itemCount(best);
+  if (bestN === 0) {
+    for (const deg of [90, -90]) {
+      if (msg) msg('Kalem bulunamadı, döndürerek deneniyor…');
+      const r = rotateCanvas(canvas, deg); const ls = await run(r); r.width = r.height = 0;
+      const n = itemCount(ls);
+      if (n > bestN || (n === bestN && ls.length > best.length)) { best = ls; bestN = n; }
+      if (n >= 2) break;
+    }
+  }
+  return best;
+}
+async function runSlipLocal(files) {
+  files = files.filter(f => f && f.size);
+  if (!files.length) return;
+  if (files.length > 4) { toast('En fazla 4 fotoğraf seçin'); return; }
+  let cancelled = false, done = false;
+  openModal({
+    title: 'Fiş okunuyor…', locked: true,
+    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted">Okuma telefonda yapılır, internet gerekmez. İlk kullanımda OCR motoru bir kez yüklenir (yaklaşık 9 MB).</p></div>`,
+    buttons: [{ label: 'İptal' }], onClose: () => { if (!done) cancelled = true; }
+  });
+  const msg = t => { const el = $('#slip-busy-msg'); if (el) el.textContent = t; };
+  try {
+    ocrProgressCb = m => { if (!m || !m.status) return; const p = typeof m.progress === 'number' && m.status === 'recognizing text' ? ' %' + Math.round(m.progress * 100) : ''; msg((OCR_STATUS[m.status] || m.status) + p); };
+    const workerP = getOcrWorker(); workerP.catch(() => { }); // motor yüklenirken fotoğraf hazırlansın
+    const all = [], thumbs = [];
+    for (let i = 0; i < files.length; i++) {
+      msg(files.length > 1 ? `Fotoğraf ${i + 1}/${files.length} hazırlanıyor…` : 'Fotoğraf hazırlanıyor…');
+      const im = await preprocessForOcr(files[i]); thumbs.push({ dataUrl: im.dataUrl });
+      if (cancelled) return;
+      const worker = await workerP;
+      if (cancelled) return;
+      msg(files.length > 1 ? `Fotoğraf ${i + 1}/${files.length} okunuyor…` : 'Yazı tanınıyor…');
+      const ls = await recognizeSlipCanvas(worker, im.canvas, msg);
+      im.canvas.width = im.canvas.height = 0; // belleği bırak
+      if (cancelled) return;
+      all.push(...ls);
+    }
+    const text = all.map(l => l.text).join('\n');
+    const parsed = parseSlipText(text, all.map(l => l.conf));
+    if (!all.length) parsed.warnings.push('Fotoğrafta okunabilir yazı bulunamadı. Daha yakından, düz ve aydınlık çekmeyi deneyin.');
+    else if (!parsed.lines.length) parsed.warnings.push('Satırlar "koli adedi + stok kodu" düzeninde tanınamadı. Ham metni açıp kontrol edin; satırları elle ekleyebilirsiniz.');
+    done = true; closeModal();
+    openSlipReview(parsed, slipMode, thumbs, { engine: 'ocr', rawText: text });
+    releaseOcrWorkerLater();
+  } catch (e) {
+    done = true; closeModal(); console.error(e);
+    if (/uzun sürdü|zaman aşımı/.test(String(e && e.message))) dropOcrWorker(); // takılan motoru at, sonraki denemede yeniden kurulsun
+    if (cancelled) return;
+    openModal({ title: 'Fiş okunamadı', html: `<p>${esc(e && e.message || e)}</p><p class="small muted">"Metin yapıştır" yolunu da deneyebilirsiniz.</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
+  } finally { ocrProgressCb = null; }
+}
+
+/* ---- yol 3 (isteğe bağlı, kapalı gelir): bulut yapay zekâ (Claude API) ---- */
+const SLIP_SCHEMA = {
+  type: 'object',
+  properties: {
+    customer: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'Fişte yazan müşteri adı; yoksa null' },
+    date: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'Fişte yazılı tarih, YYYY-AA-GG; yoksa null' },
+    lines: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          qty: { anyOf: [{ type: 'number' }, { type: 'null' }], description: 'Koli adedi; okunamıyorsa null' },
+          qty_raw: { type: 'string', description: 'Koli adedi fişte yazıldığı gibi' },
+          code_raw: { type: 'string', description: 'Stok kodu fişte yazıldığı gibi, büyük harf, boşluksuz' },
+          code: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'Ürün listesindeki karşılık gelen kod, listede yazıldığı gibi; yoksa null' },
+          confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+          note: { anyOf: [{ type: 'string' }, { type: 'null' }], description: 'Aynı satıra yazılmış kod dışı açıklama' }
+        },
+        required: ['qty', 'qty_raw', 'code_raw', 'code', 'confidence', 'note'],
+        additionalProperties: false
+      }
+    },
+    notes: { type: 'string', description: 'Satırlara ve müşteriye ait olmayan diğer yazılar' },
+    warnings: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['customer', 'date', 'lines', 'notes', 'warnings'],
+  additionalProperties: false
+};
+function aiModel() { return AI_MODELS.some(m => m[0] === S.settings.aiModel) ? S.settings.aiModel : AI_DEFAULT_MODEL; }
+function aiModelLabel(id) { const m = AI_MODELS.find(x => x[0] === id); return m ? m[1].split(' · ')[0] : id; }
+function aiErrorMessage(status, body) {
+  const m = body && body.error && body.error.message ? body.error.message : '';
+  if (status === 401) return 'API anahtarı geçersiz. Ayarlar\'dan kontrol edin.';
+  if (status === 402) return 'Anthropic hesabında bakiye yok. console.anthropic.com\'dan kredi yükleyin.';
+  if (status === 403) return 'Bu anahtarın yetkisi yok' + (m ? ': ' + m : '.');
+  if (status === 404) return 'Seçili model bu hesapta kullanılamıyor. Ayarlar\'dan başka bir model seçin.';
+  if (status === 413) return 'Fotoğraf çok büyük; daha az fotoğraf seçin.';
+  if (status === 429) return 'Çok fazla istek; biraz bekleyip tekrar deneyin.';
+  if (status === 529 || status >= 500) return 'Anthropic servisi şu an yoğun. Biraz sonra tekrar deneyin.';
+  if (status === 400) return 'İstek reddedildi' + (m ? ': ' + m : '.');
+  return 'Hata ' + status + (m ? ': ' + m : '');
+}
+async function aiCall(body, { signal, timeoutMs = 150000, retries = 2 } = {}) {
+  const key = (S.settings.aiKey || '').trim();
+  if (!key) throw new Error('API anahtarı girilmemiş (Ayarlar → El yazısı fiş okuma → Gelişmiş).');
+  body = { ...body };
+  let betaTried = false;
+  for (let attempt = 0; ; attempt++) {
+    if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
+    const headers = { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' };
+    if (body.fallbacks) headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+    const ctrl = new AbortController(); const onAbort = () => ctrl.abort();
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let res = null, text = '', netErr = null;
+    try { res = await fetch(AI_URL, { method: 'POST', headers, body: JSON.stringify(body), signal: ctrl.signal }); text = await res.text(); }
+    catch (e) { netErr = e; }
+    finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
+    if (netErr) {
+      if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
+      if (ctrl.signal.aborted) throw new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.');
+      if (attempt < retries) { await sleep(1500 * (attempt + 1)); continue; }
+      throw new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.');
+    }
+    let json = null; try { json = JSON.parse(text); } catch (_) { }
+    if (res.ok) { if (!json) throw new Error('Sunucudan geçersiz yanıt geldi'); return json; }
+    const emsg = json && json.error && json.error.message ? json.error.message : '';
+    if (res.status === 400 && body.fallbacks && !betaTried && /anthropic-beta|fallback/i.test(emsg)) { betaTried = true; delete body.fallbacks; continue; }
+    const hint = res.headers.get('x-should-retry');
+    const retryable = hint === 'true' || (hint !== 'false' && (res.status === 408 || res.status === 409 || res.status === 429 || res.status >= 500));
+    if (retryable && attempt < retries) {
+      const ra = parseFloat(res.headers.get('retry-after'));
+      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 20) * 1000 : 2000 * (attempt + 1));
+      continue;
+    }
+    throw new Error(aiErrorMessage(res.status, json));
+  }
+}
+function slipSystemPrompt() {
+  const base = `Sen toptan satış yapan bir firmanın EL YAZISI sipariş fişlerini dijitale aktaran bir asistansın. Sana fişin fotoğrafı verilir; fişi eksiksiz ve doğru okuyup istenen JSON yapısında döndürürsün.
+
+Fişin düzeni:
+- Üst kısımda genellikle müşteri (bayi, market) adı yazar; bazen tarih de bulunur.
+- Her sipariş satırı şu düzendedir: KOLİ ADEDİ, boşluk, STOK KODU. Örnekler: "5 A-1001", "12 B2002", "3  C 3001".
+- Stok kodu ve koli adedi dışında yazılmış her şey nottur (ör. "cuma teslim", "nakit", "acil", satır yanına yazılmış açıklamalar).
+
+Kurallar:
+1. Her satırı fişteki sırayla, olduğu gibi oku. Satır atlama, satır uydurma. Üzeri çizilmiş satırları alma; gerekiyorsa warnings'e yaz.
+2. code_raw: stok kodunu fişte yazıldığı gibi, büyük harfle ve boşluksuz yaz.
+3. code: Ürün listesi verildiyse okuduğun kodun listedeki hangi koda karşılık geldiğini bul ve o kodu listede yazıldığı gibi birebir yaz. El yazısında 0/O, 1/I/l/7, 5/S, 2/Z, 8/B, 6/G gibi karışıklıklar ve eksik tire olabilir; listedeki kodlarla karşılaştırarak en olası kodu seç. Satırda kod yerine ürün adı yazılmışsa listedeki ürünü bul ve kodunu yaz. Listede makul bir karşılık yoksa null bırak, uydurma.
+4. confidence: okuma ve eşleştirme kesinse "high"; küçük bir şüphe varsa "medium"; tahminse "low".
+5. qty: koli adedi (sayı). Okunamıyorsa null ve qty_raw'a gördüğünü yaz. Adet hiç yazılmamışsa 1 kabul et ve confidence'ı en fazla "medium" yap.
+6. note: aynı satırın yanına yazılmış kod dışı açıklama varsa buraya, yoksa null.
+7. customer: fişteki müşteri adı, yoksa null. date: fişte yazılı tarih varsa YYYY-AA-GG biçiminde, yoksa null.
+8. notes: fişte satırlara ve müşteriye ait olmayan diğer tüm yazılar (teslimat, ödeme, telefon, özel istek vb.), aralarında "; " ile. Yoksa boş string.
+9. warnings: okunamayan, kuşkulu veya atlanan yerler için kısa Türkçe uyarılar (ör. "3. satırın koli adedi okunamadı").
+10. Fotoğraf bir sipariş fişi değilse ya da hiç satır okunamıyorsa lines boş olsun ve warnings'e nedenini yaz.`;
+  const hint = (S.settings.aiHint || '').trim();
+  return hint ? base + '\n\nFirmanın ek açıklaması (öncelikli):\n' + hint : base;
+}
+function slipCatalogBlock() {
+  if (!S.products.length) return null;
+  const ps = [...S.products].sort((a, b) => a.code.localeCompare(b.code, 'tr'));
+  const full = ps.map(p => p.code + '\t' + p.name).join('\n');
+  let text;
+  if (full.length <= 120000) text = 'Ürün listesi (STOK KODU, sekme, ÜRÜN ADI). Kodlar birebir bu yazımdadır:\n' + full;
+  else { const codes = ps.map(p => p.code).join(' '); if (codes.length > 250000) return null; text = 'Ürün listesindeki stok kodları (birebir bu yazımdadır):\n' + codes; }
+  return { type: 'text', text, cache_control: { type: 'ephemeral' } };
+}
+function slipRequestBody(images) {
+  const model = aiModel();
+  const system = [{ type: 'text', text: slipSystemPrompt() }];
+  const cat = slipCatalogBlock(); if (cat) system.push(cat);
+  const content = [];
+  images.forEach((im, i) => {
+    if (images.length > 1) content.push({ type: 'text', text: `Fotoğraf ${i + 1}:` });
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: im.b64 } });
+  });
+  content.push({ type: 'text', text: images.length > 1 ? `Bu ${images.length} fotoğraf aynı sipariş fişinin parçaları veya sayfalarıdır. Hepsini sırayla okuyup tek bir JSON döndür.` : 'Bu sipariş fişini oku ve JSON döndür.' });
+  const body = { model, max_tokens: 16000, thinking: { type: 'adaptive' }, output_config: { effort: 'high', format: { type: 'json_schema', schema: SLIP_SCHEMA } }, system, messages: [{ role: 'user', content }] };
+  if (!/haiku/.test(model)) body.fallbacks = 'default';
+  return body;
+}
+function slipParseResponse(resp) {
+  if (resp.stop_reason === 'refusal') throw new Error('Model bu fotoğrafı işlemeyi reddetti' + (resp.stop_details && resp.stop_details.explanation ? ': ' + resp.stop_details.explanation : '.'));
+  const txt = (resp.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  if (resp.stop_reason === 'max_tokens') throw new Error('Yanıt çok uzun kaldı; fişi parçalara bölüp tekrar deneyin.');
+  let data; try { data = JSON.parse(txt); } catch (_) { throw new Error('Model yanıtı çözümlenemedi'); }
+  if (!data || !Array.isArray(data.lines)) throw new Error('Model yanıtı beklenen biçimde değil');
+  return data;
+}
+async function runSlipCloud(files) {
+  files = files.filter(f => f && f.size);
+  if (!files.length) return;
+  if (!cloudReady()) { toast('Bulut seçeneği kapalı. Ayarlar → El yazısı fiş okuma → Gelişmiş.', 3500); return; }
+  if (files.length > 6) { toast('En fazla 6 fotoğraf seçin'); return; }
+  if (navigator.onLine === false) { toast('İnternet bağlantısı yok. Bulut okuma için bağlantı gerekir; telefonda OCR\'ı kullanın.', 4000); return; }
+  const ctrl = new AbortController(); let done = false;
+  openModal({
+    title: 'Fiş okunuyor…', locked: true,
+    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted">Fotoğraf Anthropic'e gönderiliyor; el yazısı yapay zekâ ile çözülüyor. Genellikle 10–40 saniye sürer.</p></div>`,
+    buttons: [{ label: 'İptal' }], onClose: () => { if (!done) ctrl.abort(); }
+  });
+  try {
+    const images = [];
+    for (const f of files) images.push(await prepareImage(f));
+    if (ctrl.signal.aborted) return;
+    const el = $('#slip-busy-msg'); if (el) el.textContent = images.length > 1 ? `${images.length} fotoğraf okunuyor…` : 'Fiş okunuyor…';
+    const resp = await aiCall(slipRequestBody(images), { signal: ctrl.signal });
+    const data = slipParseResponse(resp);
+    done = true; closeModal();
+    openSlipReview(data, slipMode, images, { engine: 'cloud', model: resp.model || aiModel() });
+    if (!data.lines.length) toast('Fişte satır bulunamadı. Fotoğrafı kontrol edin.', 3500);
+  } catch (e) {
+    done = true; closeModal();
+    if (e && e.name === 'AbortError') { toast('İptal edildi'); return; }
+    openModal({ title: 'Fiş okunamadı', html: `<p>${esc(e && e.message || e)}</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
+  }
+}
+
+/* ---- ayarlar ---- */
+function renderAiSettings() {
+  const ls = $('#set-ocrlang');
+  if (!ls.options.length) ls.innerHTML = OCR_LANGS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+  ls.value = ocrLangSetting();
+  $('#set-aicloud').checked = !!S.settings.aiCloud;
+  $('#set-aikey').value = S.settings.aiKey || '';
+  const sel = $('#set-aimodel');
+  if (!sel.options.length) sel.innerHTML = AI_MODELS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+  sel.value = aiModel();
+  $('#set-aihint').value = S.settings.aiHint || '';
+  $('#set-cloud').open = !!S.settings.aiCloud;
+  $('#set-aistatus').textContent = !S.settings.aiCloud ? 'Bulut seçeneği kapalı; uygulama hiçbir sunucuya bağlanmaz.' : (S.settings.aiKey ? 'Bulut seçeneği açık ve anahtar kayıtlı.' : 'Bulut seçeneği açık ama API anahtarı girilmedi; menüde görünmez.');
+}
+$('#set-ocrlang').addEventListener('change', e => { S.settings.ocrLang = e.target.value; persist('settings').catch(showErr); });
+$('#set-aicloud').addEventListener('change', e => { S.settings.aiCloud = e.target.checked; persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aikey').addEventListener('change', e => { S.settings.aiKey = e.target.value.trim(); persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aikey-toggle').addEventListener('click', () => { const i = $('#set-aikey'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#set-aikey-toggle').textContent = show ? 'Gizle' : 'Göster'; });
+$('#set-aimodel').addEventListener('change', e => { S.settings.aiModel = e.target.value; persist('settings').catch(showErr); });
+$('#set-aihint').addEventListener('change', e => { S.settings.aiHint = e.target.value.trim(); persist('settings').catch(showErr); });
+$('#set-aitest').addEventListener('click', async () => {
+  const key = $('#set-aikey').value.trim(); if (!key) { toast('Önce API anahtarını girin'); return; }
+  S.settings.aiKey = key; S.settings.aiModel = $('#set-aimodel').value; await persist('settings').catch(showErr);
+  const btn = $('#set-aitest'); btn.disabled = true; const st = $('#set-aistatus'); st.textContent = 'Bağlantı deneniyor…';
+  try {
+    const r = await aiCall({ model: aiModel(), max_tokens: 256, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Sadece "TAMAM" yaz.' }] }, { retries: 0, timeoutMs: 30000 });
+    st.textContent = `Bağlantı başarılı (${r.model || aiModel()}).`; toast('Bağlantı başarılı');
+  } catch (e) { st.textContent = 'Bağlantı başarısız: ' + (e && e.message || e); }
+  finally { btn.disabled = false; }
+});
+
 /* ---------- başlangıç ---------- */
 async function boot() {
   $('#info-version').textContent = APP_VERSION;
@@ -1436,6 +2274,12 @@ async function boot() {
     return;
   }
   try { META = await DB.get('meta'); } catch (e) { showErr(e); }
+  // Android: Google Lens vb. uygulamadan "Paylaş" ile gelen metin (manifest share_target, ?text=...) adresten alınıp temizlenir
+  try {
+    const sp = new URLSearchParams(location.search);
+    const shared = [sp.get('title'), sp.get('text'), sp.get('url')].filter(Boolean).join('\n').trim();
+    if (shared) { pendingShareText = shared; history.replaceState(null, '', location.pathname); }
+  } catch (_) { }
   if (META && META.salt) { showView('lock'); setTimeout(() => $('#lock-pin').focus(), 100); }
   else { showView('setup'); }
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
@@ -1450,7 +2294,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
 })();
 </script>
 </body>

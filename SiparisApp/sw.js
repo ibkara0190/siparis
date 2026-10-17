@@ -1,9 +1,10 @@
 /* Sipariş Listesi - çevrimdışı önbellek. Sürümü değiştirince eski önbellek silinir. */
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.2.0';
 const CACHE = 'siparis-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',
   './libs/xlsx.full.min.js', './libs/html5-qrcode.min.js', './libs/pdfmake.min.js', './libs/vfs_fonts.js',
+  './libs/tesseract/tesseract.min.js', './libs/tesseract/worker.min.js', './libs/tesseract/tesseract-core-simd-lstm.wasm.js', './libs/tesseract/tur.traineddata.gz', './libs/tesseract/eng.traineddata.gz',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-512-maskable.png'
 ];
 
