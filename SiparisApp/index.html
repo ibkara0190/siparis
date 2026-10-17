@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://api.anthropic.com; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://generativelanguage.googleapis.com https://api.anthropic.com; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="referrer" content="no-referrer">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -395,12 +395,13 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
         <p class="small muted">Elle yazılmış sipariş fişinin fotoğrafı <b>telefonda, internet olmadan</b> okunur (açık kaynak Tesseract OCR motoru, ücretsiz). Satırlar (koli adedi + stok kodu), müşteri adı ve notlar çıkarılır; kontrol edip listeye aktarırsınız. Daha isabetli ücretsiz yol: telefonun kendi metin tanımasıyla (iPhone klavyesindeki "Metni Tara", Android'de Google Lens) okunan metni <b>Metin yapıştır</b> seçeneğiyle vermek.</p>
         <label class="field"><span>OCR dili</span><select id="set-ocrlang"></select></label>
         <details id="set-cloud">
-          <summary>Gelişmiş: bulut yapay zekâ ile okuma (isteğe bağlı, kapalı)</summary>
+          <summary>İnternetle okuma: çok daha isabetli (isteğe bağlı, kapalı)</summary>
           <div class="modal-body" style="margin-top:10px">
-            <p class="small muted">İnternet bağlantısı ve ücretli bir Anthropic API anahtarı gerektirir (console.anthropic.com → API Keys). Açıldığında fiş okuma menüsüne "Bulut yapay zekâ ile oku" seçeneği eklenir; fiş fotoğrafı ve ürün listesi yalnızca o seçenek kullanıldığında Anthropic'e gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
-            <label class="switch"><input type="checkbox" id="set-aicloud"><span>Bulut seçeneğini aç</span></label>
-            <div class="field"><span>API anahtarı</span>
-              <div class="row2"><input id="set-aikey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-ant-…"><button type="button" class="btn" id="set-aikey-toggle" style="flex:0 0 auto">Göster</button></div>
+            <p class="small muted">İnternet varken fiş fotoğrafı bir yapay zekâ servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları telefondaki OCR'dan çok daha iyi okur. <b>Google Gemini</b> için ücretsiz bir anahtar yeterlidir: <b>aistudio.google.com</b> → "Get API key" (Google hesabı yeter, kart istenmez; ücretsiz katmanda Google gönderilen içeriği ürünlerini geliştirmek için kullanabilir). Anthropic Claude ücretli bir alternatiftir. Açıkken fiş menüsünde "İnternetle / Telefonda" seçimi çıkar; fotoğraf ve ürün kodu listesi yalnızca "İnternetle" seçiliyken gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
+            <label class="switch"><input type="checkbox" id="set-aicloud"><span>İnternetle okumayı aç</span></label>
+            <label class="field"><span>Servis</span><select id="set-aiprovider"><option value="gemini">Google Gemini (ücretsiz anahtar)</option><option value="anthropic">Anthropic Claude (ücretli)</option></select></label>
+            <div class="field"><span id="set-aikey-label">API anahtarı</span>
+              <div class="row2"><input id="set-aikey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…"><button type="button" class="btn" id="set-aikey-toggle" style="flex:0 0 auto">Göster</button></div>
             </div>
             <label class="field"><span>Model</span><select id="set-aimodel"></select></label>
             <label class="field"><span>Fiş düzeni açıklaması (isteğe bağlı)</span><textarea id="set-aihint" rows="2" placeholder="Örn. Müşteri adı sağ üstte yazar; kodlar M- ile başlar; koli adedi daire içine alınır."></textarea></label>
@@ -522,7 +523,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.2.1';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -620,7 +621,7 @@ const Crypto = {
 };
 
 /* ---------- durum ---------- */
-const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '' };
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
 let KEY = null, META = null, cur = null;
 let slip = null, slipMode = 'new'; // fiş okuma: kontrol ekranındaki geçici veri ve hedef ('new' | 'current')
 let pendingShareText = ''; // Android'de başka uygulamadan "Paylaş" ile gelen metin (manifest share_target), kilit açılınca işlenir
@@ -1535,7 +1536,7 @@ function skel(s) { return fold(s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
 /* benzer görünen karakterler: el yazısında 0/O, 1/I/L/7, 5/S, 2/Z, 8/B, 6/G ... karışır */
 const SIM = (() => {
-  const groups = ['0OD', '1IL7', '2Z', '5S', '6G', '8B', '4A', '9Q', 'UV', 'KX', 'CG', 'QO'];
+  const groups = ['0OD', '1IL7', '2Z', '5S', '6G', '8B', '4AL', '9Q', 'UV', 'KX', 'CG', 'QO', '7FT']; // el yazısında 4 çoğu kez L gibi, üstü çizgili 7 F/T gibi okunur
   const m = {};
   for (const g of groups) for (const a of g) { m[a] = m[a] || new Set(); for (const b of g) if (a !== b) m[a].add(b); }
   return m;
@@ -1574,6 +1575,16 @@ function looksLikeCode(s) {
   if (/\d/.test(s)) return true;
   return fuzzyCodes(s, 1).some(x => x.score <= 0.25);
 }
+/* Matbu sipariş fişi etiketleri: bu sözcükler satırdan atılır ("İsim ........ Sıra No: 19832" → "19832"). */
+const FORM_LABELS = new Set(['isim', 'adi', 'adres', 'sehir', 'v.dairesi', 'vdairesi', 'vergi', 'dairesi', 'v.no', 'vno', 'ambar', 't.c.', 't.c', 'tc', 'kimlik', 'no', 'sira', 'tarih', 'adet', 'dz', 'dz.', 'malin', 'cinsi', 'cont', 'cont.', 'fiyat', 'yekun', 'tl', '(tl)', 'tl.', 'yalniz', 'toplam', 'siparis', 'fisi', 'formu', 'birim', 'tutar', 'miktar', 'aciklama', 'urun', 'kodu', 'musteri', 'firma', 'imza', 'kasa', 'plasiyer', 'sayfa', 'unvan', 'unvani']);
+function stripFormLabels(line) {
+  let removed = 0; const kept = [];
+  for (const t of String(line).replace(/[.…_]{2,}/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)) {
+    const f = fold(t).replace(/[:;,]+$/, '');
+    if (FORM_LABELS.has(f) || /^20[.]*$/.test(f) || /^[.:;,\-_/\\|]+$/.test(t)) removed++; else kept.push(t);
+  }
+  return { text: kept.join(' '), removed };
+}
 /* satır metnini (OCR, yapıştırma ya da bulut) ortak yapıya çevirir: müşteri, tarih, satırlar, notlar */
 function parseSlipText(text, confs) {
   const rows = String(text || '').replace(/\r/g, '').split('\n');
@@ -1586,10 +1597,10 @@ function parseSlipText(text, confs) {
   // ayraç ya da harfle başlayan kod olmalı; yoksa "1002" gibi yalın sayısal kodlar "10 × 02" diye bölünür.
   const reQtyFirst = new RegExp('^\\s*' + QTY + '(?:\\s*' + UNIT + '(?=\\s)\\s*|\\s*[-:.]\\s*|\\s+|(?=[A-Za-zÇĞİÖŞÜçğıöşü]))' + CODE + '(.*)$', 'i');
   // OCR 5/S, 0/O, 1/l/I, 2/Z, 8/B karıştırır: kısa, harf içeren adet belirteci + boşluk + kod ("S A-1001" → 5 A-1001)
-  const reQtyLoose = new RegExp('^\\s*([0-9SsOoIlZzB|&]{1,3})\\s+' + CODE + '(.*)$');
+  const reQtyLoose = new RegExp('^\\s*([0-9SsOoIlZzBGgqT|&]{1,3})\\s+' + CODE + '(.*)$');
   // Kod önce, sonra adet: arada boşluk ya da x/×/*/: olmalı; yoksa "A-1002" tek başına "A-100 × 2" diye bölünür.
   const reCodeFirst = new RegExp('^\\s*' + CODE + '(?:\\s+|\\s*[x×*:]\\s*)' + QTY + '\\s*(?:adet|koli|kl\\.?|k\\.?)?\\s*$', 'i');
-  const digitize = t => String(t).replace(/[SsOoIlZzB|&]/g, c => ({ S: '5', s: '5', O: '0', o: '0', I: '1', l: '1', Z: '2', z: '2', B: '8', '|': '1', '&': '8' }[c]));
+  const digitize = t => String(t).replace(/[SsOoIlZzBGgqT|&]/g, c => ({ S: '5', s: '5', O: '0', o: '0', I: '1', l: '1', Z: '2', z: '2', B: '8', G: '6', g: '9', q: '9', T: '7', '|': '1', '&': '8' }[c]));
   const strong = s => !!s && !/\s/.test(s) && (IDX.byCode.has(fold(s)) || fuzzyCodes(s, 1).some(x => x.score <= 0.2)); // katalogda kesin ya da çok yakın karşılığı var
   const confAt = i => { const c = confs ? Number(confs[i]) : NaN; return !Number.isFinite(c) ? 'high' : c >= 80 ? 'high' : c >= 55 ? 'medium' : 'low'; };
   const lower = (a, b) => ['high', 'medium', 'low'].indexOf(a) >= ['high', 'medium', 'low'].indexOf(b) ? a : b;
@@ -1608,7 +1619,8 @@ function parseSlipText(text, confs) {
     out.lines.push(rec);
     note = cleanNote(note);
     // aynı satırda ikinci bir kalem olabilir ("5 A-1001 3 B-2002"): açıklama kısmı da kalem gibi okunuyorsa ayrı satır yap
-    if (note && depth < 3 && reQtyFirst.test(note) && tryItem(note, i, depth + 1)) note = '';
+    const rest = note.replace(/^[^A-Za-z0-9ÇĞİÖŞÜçğıöşü]+/, ''); // OCR artığı işaretleri ("~ 6 KR 085") atla
+    if (rest && depth < 3 && reQtyFirst.test(rest) && tryItem(rest, i, depth + 1)) note = '';
     rec.note = note || null;
   };
   // yalnızca kalem kalıpları; kalem ürettiyse true
@@ -1637,10 +1649,12 @@ function parseSlipText(text, confs) {
   const titleOnly = /^(siparis( fisi| formu)?|fis|sipari[sş] fi[sş]i)$/;
   const nameLike = line => { const f = fold(line); return line.length >= 3 && line.length <= 60 && (f.match(/[a-z]/g) || []).length >= 3 && (f.match(/\d/g) || []).length < 7 && !noteWords.test(f); };
   for (let i = 0; i < rows.length; i++) {
-    let line = clean(rows[i]); if (!line) continue;
+    // matbu fiş etiketleri (İsim, Adres, Adet, Fiyat, Yekün...) ve noktalı satır kalıntıları atılır
+    const st = stripFormLabels(clean(rows[i])); let line = st.text;
+    if (!line || (st.removed >= 2 && line.length <= 2)) continue;
     // adet ile kod ayrı satırlara düşmüş olabilir ("5" / "A-1001"): sonraki satırla birleştirmeyi dene
     if (/^\d{1,3}$/.test(line) && i + 1 < rows.length) {
-      const next = clean(rows[i + 1]); const m2 = next ? reQtyFirst.exec(line + ' ' + next) : null;
+      const next = stripFormLabels(clean(rows[i + 1])).text; const m2 = next ? reQtyFirst.exec(line + ' ' + next) : null;
       const sc = m2 ? splitCode(m2[2] + m2[3]) : null;
       if (sc && strong(sc.code)) { line = line + ' ' + next; i++; }
     }
@@ -1703,7 +1717,7 @@ function renderSlip() {
   th.innerHTML = slip.images.map((im, i) => `<img src="${im.dataUrl}" data-i="${i}" alt="Fiş fotoğrafı ${i + 1}" title="Büyüt">`).join('');
   th.hidden = !slip.images.length;
   const raw = $('#sl-rawbox'); raw.hidden = !slip.meta.rawText; if (slip.meta.rawText) { $('#sl-raw').textContent = slip.meta.rawText; raw.open = false; }
-  const eng = slip.meta.engine === 'cloud' ? 'Bulut yapay zekâ' : slip.meta.engine === 'text' ? 'Yapıştırılan metin' : 'Telefonda OCR';
+  const eng = slip.meta.engine === 'cloud' ? 'İnternetle' + (slip.meta.model ? ' (' + slip.meta.model + ')' : '') : slip.meta.engine === 'text' ? 'Yapıştırılan metin' : 'Telefonda OCR';
   $('#sl-sub').textContent = `${eng} · ${slip.mode === 'current' ? 'mevcut listeye eklenecek' : 'yeni liste oluşturulacak'}`;
   hideSlipCustomerSuggest();
   renderSlipLines();
@@ -1851,27 +1865,40 @@ $('#sl-import').addEventListener('click', importSlip);
 
 /* ---- giriş: fotoğraf çek / galeriden seç / metin yapıştır / (isteğe bağlı) bulut ---- */
 let slipRoute = 'local';
-function cloudReady() { return !!S.settings.aiCloud && !!(S.settings.aiKey || '').trim(); }
+function cloudProvider() { return S.settings.aiProvider === 'anthropic' ? 'anthropic' : 'gemini'; }
+function cloudKey(p = cloudProvider()) { return String((p === 'anthropic' ? S.settings.aiKey : S.settings.geminiKey) || '').trim(); }
+function cloudReady() { return !!S.settings.aiCloud && !!cloudKey(); }
+function cloudLabel(p = cloudProvider()) { return p === 'anthropic' ? 'Anthropic Claude' : 'Google Gemini'; }
 function startSlipCapture(mode) {
   if (mode === 'current' && !cur) return;
-  slipMode = mode; slipRoute = 'local';
-  warmOcr();
+  slipMode = mode;
+  const cloud = cloudReady(), online = navigator.onLine !== false;
+  slipRoute = cloud && online && S.settings.slipRoute !== 'local' ? 'cloud' : 'local';
+  if (slipRoute === 'local') warmOcr();
+  const routeNote = () => slipRoute === 'cloud'
+    ? `Fotoğraf ${cloudLabel()} servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları çok daha iyi okur. Ürün kodu listesi de eşleştirme için gönderilir.`
+    : 'Okuma telefonda yapılır, internet gerekmez. Fişin tamamı kadraja girsin; yazı net, düz ve iyi aydınlatılmış olsun.';
+  const routeHtml = cloud ? `<div class="field"><span>Okuma yolu</span><div class="row2"><button type="button" class="btn${slipRoute === 'cloud' ? ' primary' : ''}" data-route="cloud"${online ? '' : ' disabled'}>☁️ İnternetle${online ? '' : ' (çevrimdışı)'}</button><button type="button" class="btn${slipRoute === 'local' ? ' primary' : ''}" data-route="local">📱 Telefonda</button></div></div>` : '';
   openModal({
     title: 'El yazısı fişi oku',
-    html: `<p class="small muted">Fişin tamamı kadraja girsin; yazı net, düz ve iyi aydınlatılmış olsun. Okuma telefonda yapılır, internet gerekmez.</p>
+    html: `${routeHtml}<p class="small muted" id="slip-route-note">${routeNote()}</p>
       <div class="menu-list">
         <button type="button" class="btn primary bigbtn" id="slip-cam">📷 Fotoğraf çek</button>
         <button type="button" class="btn" id="slip-gal">🖼 Galeriden seç</button>
         <button type="button" class="btn" id="slip-txt">⌨️ Metin yapıştır${isIOS ? ' / "Metni Tara"' : ' (Google Lens)'}</button>
-        ${cloudReady() ? '<button type="button" class="btn" id="slip-cloud">☁️ Bulut yapay zekâ ile oku (internet, ücretli)</button>' : ''}
       </div>
-      <p class="small muted">En isabetli ücretsiz yol: ${isIOS ? 'metin kutusuna dokunup klavyedeki <b>Metni Tara</b> (kamera) düğmesiyle fişi okutmak.' : 'kamera veya Google Fotoğraflar\'da <b>Google Lens</b> → <b>Metni kopyala</b>, sonra "Metin yapıştır".'}</p>`,
+      <p class="small muted">${cloud ? 'Ücretsiz ve internetsiz yol: ' : 'En isabetli ücretsiz yol: '}${isIOS ? 'metin kutusuna dokunup klavyedeki <b>Metni Tara</b> (kamera) düğmesiyle fişi okutmak.' : 'kamera veya Google Fotoğraflar\'da <b>Google Lens</b> → <b>Metni kopyala</b>, sonra "Metin yapıştır".'}</p>`,
     buttons: [{ label: 'Vazgeç' }]
   });
+  $$('#modal [data-route]').forEach(b => b.addEventListener('click', () => {
+    slipRoute = b.dataset.route; S.settings.slipRoute = slipRoute; persist('settings').catch(() => { });
+    $$('#modal [data-route]').forEach(x => x.classList.toggle('primary', x.dataset.route === slipRoute));
+    $('#slip-route-note').textContent = routeNote();
+    if (slipRoute === 'local') warmOcr();
+  }));
   $('#slip-cam').addEventListener('click', () => { closeModal(); $('#slip-file-cam').click(); });
   $('#slip-gal').addEventListener('click', () => { closeModal(); $('#slip-file-gal').click(); });
   $('#slip-txt').addEventListener('click', () => { closeModal(); openSlipTextDialog(); });
-  const cb = $('#slip-cloud'); if (cb) cb.addEventListener('click', () => { closeModal(); slipRoute = 'cloud'; $('#slip-file-gal').click(); });
 }
 function onSlipFiles(e) {
   const files = Array.from(e.target.files || []); e.target.value = '';
@@ -1928,35 +1955,217 @@ function jpegDataUrl(canvas, quality = 0.85, maxLen = 4.5e6) {
   while (out.length > maxLen && q > 0.45) { q -= 0.1; out = canvas.toDataURL('image/jpeg', q); }
   return out;
 }
-/* OCR için: gri + yerel uyarlanabilir eşikleme (Bradley). Gölgeli, eğik ışıklı kâğıtta düz eşiklemeden çok daha iyi. */
-function binarize(canvas, T = 0.88) {
-  const w = canvas.width, h = canvas.height, ctx = canvas.getContext('2d', { willReadFrequently: true });
-  const id = ctx.getImageData(0, 0, w, h), d = id.data, n = w * h;
-  const g = new Uint8Array(n);
-  for (let i = 0, j = 0; j < n; i += 4, j++) g[j] = (d[i] * 77 + d[i + 1] * 151 + d[i + 2] * 28) >> 8;
+/* ---- görüntü işleme: fotoğraftan OCR'a uygun, temiz siyah-beyaz görüntü ----
+   Sıra: kırmızı kalemi (imza) sil → eğriliği düzelt → yerel eşikle (Bradley; gölgeli kâğıtta düz eşikten çok iyi) →
+   tablo çizgilerini sil → noktalı satır kalıntılarını sil → adet dairelerini kaldır → tablo sütunlarını bul. */
+function grayFromCanvas(canvas) {
+  const w = canvas.width, h = canvas.height, d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h).data;
+  const g = new Uint8Array(w * h);
+  for (let i = 0, j = 0; j < w * h; i += 4, j++) g[j] = (d[i] * 77 + d[i + 1] * 151 + d[i + 2] * 28) >> 8; // renk ayrımı yok: kırmızı kalemle yazılan sipariş de okunur
+  return { g, w, h };
+}
+function bradley(g, w, h, T = 0.88) { // 1 = mürekkep
   const W1 = w + 1, ii = new Uint32Array(W1 * (h + 1));
   for (let y = 1; y <= h; y++) { let row = 0; const o = y * W1, oi = (y - 1) * w, op = (y - 1) * W1; for (let x = 1; x <= w; x++) { row += g[oi + x - 1]; ii[o + x] = ii[op + x] + row; } }
-  const r = Math.max(8, Math.round(Math.max(w, h) / 60));
+  const r = Math.max(8, Math.round(Math.max(w, h) / 60)); const bin = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {
     const y0 = Math.max(0, y - r), y1 = Math.min(h - 1, y + r);
     for (let x = 0; x < w; x++) {
       const x0 = Math.max(0, x - r), x1 = Math.min(w - 1, x + r);
       const cnt = (x1 - x0 + 1) * (y1 - y0 + 1);
       const sum = ii[(y1 + 1) * W1 + (x1 + 1)] - ii[y0 * W1 + (x1 + 1)] - ii[(y1 + 1) * W1 + x0] + ii[y0 * W1 + x0];
-      const v = g[y * w + x] * cnt < sum * T ? 0 : 255;
-      const i = (y * w + x) * 4; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+      if (g[y * w + x] * cnt < sum * T) bin[y * w + x] = 1;
     }
   }
+  return bin;
+}
+function binarize(canvas, T = 0.88) { // eski arayüz: tuvali yerinde siyah-beyaza çevirir
+  const { g, w, h } = grayFromCanvas(canvas); const bin = bradley(g, w, h, T);
+  writeBin(canvas, bin, w, h); return canvas;
+}
+function writeBin(canvas, bin, w, h) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true }); const id = ctx.createImageData(w, h); const d = id.data;
+  for (let j = 0, i = 0; j < w * h; j++, i += 4) { const v = bin[j] ? 0 : 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
   ctx.putImageData(id, 0, 0);
-  return canvas;
+}
+function estimateSkew(bin, w, h) { // satırların yatay izdüşümünü en keskinleştiren açı (±8°, 0,5° adım)
+  const s = Math.max(1, Math.ceil(Math.max(w, h) / 400)); const pts = [];
+  for (let y = 0; y < h; y += s) for (let x = 0; x < w; x += s) if (bin[y * w + x]) pts.push(x / s, y / s);
+  if (pts.length < 200) return 0;
+  const sw = Math.ceil(w / s), sh = Math.ceil(h / s), cx = sw / 2, cy = sh / 2, diag = Math.ceil(Math.hypot(sw, sh));
+  let best = 0, bestScore = -1;
+  for (let a = -8; a <= 8; a += 0.5) {
+    const rad = a * Math.PI / 180, cos = Math.cos(rad), sin = Math.sin(rad); const rows = new Int32Array(2 * diag + 2);
+    for (let i = 0; i < pts.length; i += 2) rows[Math.round((pts[i + 1] - cy) * cos - (pts[i] - cx) * sin) + diag]++;
+    let sc = 0; for (let i = 0; i < rows.length; i++) sc += rows[i] * rows[i];
+    if (sc > bestScore) { bestScore = sc; best = a; }
+  }
+  return best;
+}
+function rotateGray(g, w, h, deg) {
+  const src = document.createElement('canvas'); src.width = w; src.height = h;
+  const sctx = src.getContext('2d'); const id = sctx.createImageData(w, h); const d = id.data;
+  for (let j = 0, i = 0; j < w * h; j++, i += 4) { d[i] = d[i + 1] = d[i + 2] = g[j]; d[i + 3] = 255; }
+  sctx.putImageData(id, 0, 0);
+  const dst = document.createElement('canvas'); dst.width = w; dst.height = h; const ctx = dst.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.translate(w / 2, h / 2); ctx.rotate(deg * Math.PI / 180); ctx.drawImage(src, -w / 2, -h / 2);
+  src.width = src.height = 0;
+  const out = ctx.getImageData(0, 0, w, h).data; const g2 = new Uint8Array(w * h);
+  for (let j = 0, i = 0; j < w * h; j++, i += 4) g2[j] = out[i];
+  dst.width = dst.height = 0;
+  return g2;
+}
+function removeLines(bin, w, h) { // uzun yatay/dikey çizgileri (tablo, kâğıt kenarı) siler; dikey çizgi yerlerini döndürür
+  const minH = Math.round(w * 0.1), minV = Math.round(h * 0.08), vlines = [], hlines = [];
+  const gapH = 4, gapV = 5; // soluk/noktalı çizgilerdeki kısa kopukluklar atlanır
+  const eraseH = (y, x0, x1) => { for (let yy = Math.max(0, y - 1); yy <= Math.min(h - 1, y + 1); yy++) { const o = yy * w; for (let k = x0; k <= x1; k++) bin[o + k] = 0; } };
+  const eraseV = (x, y0, y1) => { for (let xx = Math.max(0, x - 1); xx <= Math.min(w - 1, x + 1); xx++) for (let k = y0; k <= y1; k++) bin[k * w + xx] = 0; };
+  const found = [];
+  for (let y = 0; y < h; y++) {
+    let start = -1, last = -1; const o = y * w;
+    for (let x = 0; x <= w; x++) {
+      const ink = x < w && bin[o + x];
+      if (ink) { if (start < 0) start = x; last = x; }
+      else if (start >= 0 && x - last > gapH) { if (last - start + 1 >= minH) found.push([y, start, last]); start = -1; }
+    }
+  }
+  for (const [y, x0, x1] of found) { eraseH(y, x0, x1); hlines.push([y, x0, x1]); }
+  const foundV = [];
+  for (let x = 0; x < w; x++) {
+    let start = -1, last = -1;
+    for (let y = 0; y <= h; y++) {
+      const ink = y < h && bin[y * w + x];
+      if (ink) { if (start < 0) start = y; last = y; }
+      else if (start >= 0 && y - last > gapV) { if (last - start + 1 >= minV) foundV.push([x, start, last]); start = -1; }
+    }
+  }
+  for (const [x, y0, y1] of foundV) { eraseV(x, y0, y1); vlines.push([x, y0, y1]); }
+  return { vlines, hlines };
+}
+/* Kapalı bir halka (adetin etrafına çizilen daire) mı? Dış arka plandan erişilemeyen iç boşluk büyükse evet;
+   halka dıştan içe doğru soyulur, içindeki rakam kalır. Dönüş: soyulduysa true. */
+function peelRing(bin, lab, w, c) {
+  const P = 3, bw = c.w + 2 * P, bh = c.h + 2 * P, N = bw * bh;
+  const m = new Uint8Array(N), dm = new Uint8Array(N);
+  for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) if (lab[(c.minY + y) * w + (c.minX + x)] === c.id) m[(y + P) * bw + (x + P)] = 1;
+  // 2 px genişletilmiş maske: kalemin kaldırıldığı 1-4 px'lik boşluklar kapanır, halka "kapalı" sayılır
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) { if (!m[y * bw + x]) continue; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const yy = y + dy, xx = x + dx; if (yy >= 0 && xx >= 0 && yy < bh && xx < bw) dm[yy * bw + xx] = 1; } }
+  const out = new Uint8Array(N), q = new Int32Array(N); let qh = 0, qt = 0;
+  q[qt++] = 0; out[0] = 1;
+  while (qh < qt) {
+    const p = q[qh++]; const x = p % bw, y = (p - x) / bw;
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let k = 0; k < 4; k++) { const xx = x + nb[k][0], yy = y + nb[k][1]; if (xx < 0 || yy < 0 || xx >= bw || yy >= bh) continue; const n = yy * bw + xx; if (out[n] || dm[n]) continue; out[n] = 1; q[qt++] = n; }
+  }
+  let hole = 0, hx0 = bw, hx1 = -1, hy0 = bh, hy1 = -1;
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) { const i = y * bw + x; if (out[i] || dm[i]) continue; hole++; if (x < hx0) hx0 = x; if (x > hx1) hx1 = x; if (y < hy0) hy0 = y; if (y > hy1) hy1 = y; }
+  c.hole = hole / (c.w * c.h);
+  if (hole < 0.12 * c.w * c.h || hx1 - hx0 < 0.35 * c.w || hy1 - hy0 < 0.35 * c.h) return false; // kapalı, geniş bir iç boşluk yok
+  // iç boşluğun elipsinin dışında kalan bileşen pikselleri halkadır: sil (içteki rakam kalır)
+  const cx = (hx0 + hx1) / 2, cy = (hy0 + hy1) / 2, rx = (hx1 - hx0) / 2 + 2.5, ry = (hy1 - hy0) / 2 + 2.5;
+  for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+    const i = y * bw + x; if (!m[i]) continue;
+    const dx = (x - cx) / rx, dy = (y - cy) / ry;
+    if (dx * dx + dy * dy >= 1) { const gp = (c.minY + y - P) * w + (c.minX + x - P); bin[gp] = 0; lab[gp] = 0; }
+  }
+  return true;
+}
+function components(bin, w, h) { // 8 komşuluklu bağlı bileşenler: kutu ve alan
+  const lab = new Int32Array(w * h), stack = new Int32Array(w * h), comps = [];
+  for (let p = 0; p < w * h; p++) {
+    if (!bin[p] || lab[p]) continue;
+    const id = comps.length + 1; let sp = 0; stack[sp++] = p; lab[p] = id;
+    let minX = w, maxX = 0, minY = h, maxY = 0, area = 0;
+    while (sp) {
+      const q = stack[--sp]; const x = q % w, y = (q - x) / w; area++;
+      if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= h) continue; for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= w) continue; const n = yy * w + xx; if (bin[n] && !lab[n]) { lab[n] = id; stack[sp++] = n; } } }
+    }
+    comps.push({ id, minX, maxX, minY, maxY, area, w: maxX - minX + 1, h: maxY - minY + 1 });
+  }
+  return { lab, comps };
+}
+/* Noktalı satır kalıntılarını (ufak lekeler) ve adetlerin etrafına çizilen daireleri siler. */
+function cleanComponents(bin, w, h) {
+  const { lab, comps } = components(bin, w, h);
+  const small = Math.max(6, Math.round(Math.max(w, h) / 170));
+  const erase = c => { for (let y = c.minY; y <= c.maxY; y++) for (let x = c.minX; x <= c.maxX; x++) { const p = y * w + x; if (lab[p] === c.id) bin[p] = 0; } };
+  const hs = [];
+  for (const c of comps) {
+    const fill = c.area / (c.w * c.h);
+    if (c.w <= small && c.h <= small) { erase(c); c.dead = true; continue; } // nokta, leke
+    if (c.area >= 0.02 * w * h || ((c.w >= 0.25 * w || c.h >= 0.25 * h) && fill >= 0.45)) { erase(c); c.dead = true; continue; } // koyu zemin (masa), kâğıt dışı
+    if (c.h >= small * 1.5 && c.h <= h * 0.12) hs.push(c.h);
+  }
+  hs.sort((a, b) => a - b); const medH = hs.length ? hs[hs.length >> 1] : Math.round(h / 40);
+  let rings = 0, scribbles = 0;
+  for (const c of comps) { // imza / karalama: yazı boyunun en az 3 katı yükseklik ve genişlikte, seyrek (ince, dağınık çizgi)
+    if (c.dead) continue;
+    const fill = c.area / (c.w * c.h);
+    if (c.h >= 3 * medH && c.w >= 3 * medH && fill <= 0.25) { erase(c); c.dead = true; scribbles++; }
+  }
+  const ringDebug = [];
+  const live = comps.filter(c => !c.dead);
+  for (const c of live) { // adet daireleri
+    if (c.dead) continue;
+    const ar = c.w / c.h; if (ar < 0.5 || ar > 1.8 || c.h < 1.2 * medH || c.h > 5 * medH) continue;
+    const fill = c.area / (c.w * c.h); if (fill > 0.7) continue;
+    let ok = peelRing(bin, lab, w, c);
+    if (!ok) { // açık halka (çizgiye teğet, silinirken yay kaybetmiş): pikseller elips bandında ve içinde ayrı bir rakam var
+      const cx = (c.minX + c.maxX) / 2, cy = (c.minY + c.maxY) / 2, rx = c.w / 2, ry = c.h / 2;
+      let outer = 0;
+      for (let y = c.minY; y <= c.maxY; y++) for (let x = c.minX; x <= c.maxX; x++) { if (lab[y * w + x] !== c.id) continue; const dx = (x - cx) / rx, dy = (y - cy) / ry; if (dx * dx + dy * dy >= 0.46) outer++; }
+      const outerFrac = outer / c.area;
+      const inner = live.filter(o => o !== c && !o.dead && o.h >= 0.4 * medH && o.minX > c.minX + 0.08 * c.w && o.maxX < c.maxX - 0.08 * c.w && o.minY > c.minY + 0.08 * c.h && o.maxY < c.maxY - 0.08 * c.h).length;
+      c.outerFrac = outerFrac; c.inner = inner;
+      if ((outerFrac >= 0.8 && inner >= 1) || (outerFrac >= 0.92 && ar >= 0.75 && c.h >= 1.5 * medH)) {
+        for (let y = c.minY; y <= c.maxY; y++) for (let x = c.minX; x <= c.maxX; x++) { const p = y * w + x; if (lab[p] !== c.id) continue; const dx = (x - cx) / rx, dy = (y - cy) / ry; if (dx * dx + dy * dy >= 0.36) { bin[p] = 0; lab[p] = 0; } }
+        ok = true;
+      }
+    }
+    if (ok) rings++;
+    if (ringDebug.length < 40) ringDebug.push([c.minX, c.minY, c.w, c.h, +fill.toFixed(2), +(c.hole || 0).toFixed(2), +(c.outerFrac || 0).toFixed(2), c.inner || 0, ok ? 1 : 0]);
+  }
+  return { medH, rings, scribbles, count: comps.length, ringDebug };
+}
+function detectTable(vlines, w, h) { // uzun dikey çizgiler → sütun sınırları
+  const sorted = vlines.map(v => ({ x: v[0], y0: v[1], y1: v[2] })).sort((a, b) => a.x - b.x);
+  const clusters = [];
+  for (const v of sorted) { const c = clusters[clusters.length - 1]; if (c && v.x - c.last <= 8) { c.last = v.x; c.xs.push(v.x); c.y0 = Math.min(c.y0, v.y0); c.y1 = Math.max(c.y1, v.y1); } else clusters.push({ last: v.x, xs: [v.x], y0: v.y0, y1: v.y1 }); }
+  const vs = clusters.map(c => ({ x: Math.round(c.xs.reduce((a, b) => a + b, 0) / c.xs.length), y0: c.y0, y1: c.y1 })).filter(c => c.y1 - c.y0 >= 0.3 * h);
+  if (vs.length < 2) return null;
+  let top = h, bottom = 0; for (const v of vs) { if (v.y0 < top) top = v.y0; if (v.y1 > bottom) bottom = v.y1; }
+  const cols = [], pad = 5;
+  if (vs[0].x >= 0.08 * w) cols.push({ x0: 0, x1: vs[0].x - pad });
+  for (let i = 0; i + 1 < vs.length; i++) if (vs[i + 1].x - vs[i].x >= 0.03 * w) cols.push({ x0: vs[i].x + pad, x1: vs[i + 1].x - pad });
+  if (w - vs[vs.length - 1].x >= 0.08 * w) cols.push({ x0: vs[vs.length - 1].x + pad, x1: w - 1 });
+  return cols.length >= 2 ? { top, bottom, cols } : null;
+}
+function inkBands(bin, w, x0, x1, y0, y1, minH) { // bir sütunda yukarıdan aşağıya mürekkep şeritleri (hücre satırları)
+  const bands = []; let start = -1, last = -1; const gapTol = 4;
+  for (let y = y0; y <= y1 + 1; y++) {
+    let ink = 0;
+    if (y <= y1) { const o = y * w; for (let x = x0; x <= x1; x++) if (bin[o + x]) { ink++; if (ink >= 2) break; } }
+    if (ink >= 2) { if (start < 0) start = y; last = y; }
+    else if (start >= 0 && y - last > gapTol) { if (last - start + 1 >= minH) bands.push({ y0: start, y1: last }); start = -1; }
+  }
+  return bands;
 }
 async function preprocessForOcr(file) {
   const img = await loadImageFile(file);
   const preview = jpegDataUrl(drawScaled(img, 1400), 0.8);
   const W = img.naturalWidth, H = img.naturalHeight;
   const long = Math.max(W, H) > 1.3 * Math.min(W, H) ? 2400 : 2000; // uzun fişte daha çok satır var: biraz daha yüksek çözünürlük
-  const canvas = binarize(drawScaled(img, long, 2.5));
-  return { canvas, dataUrl: preview, w: canvas.width, h: canvas.height };
+  const canvas = drawScaled(img, long, 2.5);
+  let { g, w, h } = grayFromCanvas(canvas);
+  let bin = bradley(g, w, h);
+  const skew = estimateSkew(bin, w, h);
+  if (Math.abs(skew) >= 0.4) { g = rotateGray(g, w, h, -skew); bin = bradley(g, w, h); }
+  const { vlines } = removeLines(bin, w, h);
+  const { medH, rings, scribbles, ringDebug } = cleanComponents(bin, w, h);
+  const table = detectTable(vlines, w, h);
+  writeBin(canvas, bin, w, h);
+  return { canvas, bin, w, h, medH, rings, scribbles, ringDebug, skew, table, dataUrl: preview };
 }
 function rotateCanvas(c, deg) {
   const r = document.createElement('canvas'); r.width = c.height; r.height = c.width;
@@ -1974,7 +2183,7 @@ async function prepareImage(file, maxEdge = 2240) { // bulut yolu: renkli, yüks
 /* ---- yol 1: telefonda OCR (Tesseract) ---- */
 let ocrWorkerP = null, ocrWorkerLang = '', ocrIdleTimer = null, ocrProgressCb = null, ocrParamOverride = null, ocrInitOverride = null;
 const OCR_PARAMS = { tessedit_pageseg_mode: '6', preserve_interword_spaces: '1', user_defined_dpi: '300' };
-const OCR_INIT = {}; // başlatma parametreleri (dil verisiyle birlikte yüklenir)
+const OCR_INIT = { load_system_dawg: '0', load_freq_dawg: '0' }; // sözlük kapalı: el yazısı kodlar sözcüklere ("BASA", "Vani") zorlanmasın
 function ocrLangSetting() { return OCR_LANGS.some(l => l[0] === S.settings.ocrLang) ? S.settings.ocrLang : 'tur+eng'; }
 // Tek bir motor (worker) tutulur; aynı anda iki istek gelse de bir kez yüklenir. Dil değişince yenisi kurulur.
 function getOcrWorker() {
@@ -2011,16 +2220,72 @@ function ocrLines(data) {
     // satır güveni = satırın ve en zayıf sözcüğünün güveninden küçük olanı (tek bir şüpheli rakam bile satırı "kontrol edin" yapar)
     let conf = Number(l.confidence) || 0;
     for (const w of l.words || []) { const c = Number(w.confidence); if (Number.isFinite(c) && String(w.text || '').trim()) conf = Math.min(conf, c); }
-    out.push({ text: t, conf, y: l.bbox ? l.bbox.y0 : 0, x: l.bbox ? l.bbox.x0 : 0 });
+    out.push({ text: t, conf, y: l.bbox ? l.bbox.y0 : 0, y1: l.bbox ? l.bbox.y1 : 1, x: l.bbox ? l.bbox.x0 : 0 });
   }
-  if (!out.length && data && data.text) return String(data.text).split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ text, conf: Number(data.confidence) || 0, y: i, x: 0 }));
+  if (!out.length && data && data.text) return String(data.text).split('\n').map(s => s.trim()).filter(Boolean).map((text, i) => ({ text, conf: Number(data.confidence) || 0, y: i, y1: i + 1, x: 0 }));
   return out.sort((a, b) => a.y - b.y || a.x - b.x);
+}
+/* Tablolu (matbu) fiş: başlık bölgesi, her sütunun her hücre şeridi ve alt bölge ayrı ayrı okunur; hücreler
+   dikey konumlarına göre satırlara birleştirilir ("5 43797 2 43762"). Dar sütunlar yalnızca rakam olarak okunur (adet). */
+function rowsFromFragments(frags) {
+  if (!frags.length) return [];
+  const hs = frags.map(f => f.hgt).sort((a, b) => a - b); const medH = hs[hs.length >> 1] || 20;
+  frags.sort((a, b) => a.yc - b.yc);
+  const rows = []; let cur = null;
+  for (const f of frags) {
+    if (cur && Math.abs(f.yc - cur.yc) <= 0.55 * medH) { cur.frags.push(f); cur.yc = cur.frags.reduce((a, x) => a + x.yc, 0) / cur.frags.length; }
+    else { cur = { yc: f.yc, frags: [f] }; rows.push(cur); }
+  }
+  return rows.map(r => { r.frags.sort((a, b) => a.x0 - b.x0); return { text: r.frags.map(f => f.text).join(' '), conf: Math.min(...r.frags.map(f => f.conf)), y: r.yc }; });
+}
+/* Katalogdaki stok kodlarında geçen karakterler: kod hücreleri yalnızca bunlarla okunur ("43797" → "BASA" olamaz). */
+function codeAlphabet() {
+  const set = new Set('0123456789');
+  for (const p of S.products) for (const ch of String(p.code).toUpperCase()) if (/[A-Z0-9ÇĞİÖŞÜ\-_./]/.test(ch)) set.add(ch);
+  for (const p of S.products) for (const ch of String(p.code)) if (/[a-zçğıöşü]/.test(ch)) set.add(ch);
+  return [...set].join('') + ' ';
+}
+async function recognizeTable(worker, im, run, msg) {
+  const { canvas, bin, w, h, table, medH } = im; const frags = [], out = []; const M = 10;
+  const codeChars = S.products.length ? codeAlphabet() : '';
+  const crop = (sx, sy, cw, ch) => { const cc = document.createElement('canvas'); cc.width = cw + 2 * M; cc.height = ch + 2 * M; const ctx = cc.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cc.width, cc.height); ctx.drawImage(canvas, sx, sy, cw, ch, M, M, cw, ch); return cc; };
+  const region = async (sx, sy, cw, ch) => {
+    if (ch < 10 || cw < 10) return [];
+    const cc = crop(sx, sy, cw, ch); const ls = await run(cc); cc.width = cc.height = 0;
+    return ls.map(l => ({ text: l.text, conf: l.conf, yc: sy - M + (l.y + l.y1) / 2, hgt: Math.max(1, l.y1 - l.y), x0: sx + l.x }));
+  };
+  if (msg) msg('Fiş başlığı okunuyor…');
+  if (table.top > h * 0.04) out.push(...(await region(0, 0, w, table.top - 2)).sort((a, b) => a.yc - b.yc));
+  let n = 0;
+  for (const col of table.cols) {
+    const narrow = (col.x1 - col.x0) < 0.15 * w;
+    const bands = inkBands(bin, w, col.x0, col.x1, table.top, table.bottom, Math.max(8, Math.round(medH * 0.5)));
+    if (!bands.length) continue;
+    // dar sütun: yalnızca rakam (adet); geniş sütun: katalog kodlarının karakterleri + rakam (kod ve adet birlikte olabilir)
+    const wl = narrow ? '0123456789' : codeChars;
+    if (wl) await worker.setParameters({ tessedit_char_whitelist: wl });
+    try {
+      for (const b of bands) {
+        n++; if (msg && n % 4 === 0) msg(`Hücreler okunuyor… (${n})`);
+        frags.push(...await region(col.x0, b.y0, col.x1 - col.x0 + 1, b.y1 - b.y0 + 1));
+      }
+    } finally { if (wl) await worker.setParameters({ tessedit_char_whitelist: '' }); }
+  }
+  const rows = rowsFromFragments(frags);
+  im.tableRows = rows.map(r => r.text); // hata ayıklama: hücrelerden kurulan satırlar
+  out.push(...rows.map(r => ({ text: r.text, conf: r.conf, yc: r.y })));
+  if (h - table.bottom > h * 0.04) out.push(...(await region(0, table.bottom + 2, w, h - table.bottom - 2)).sort((a, b) => a.yc - b.yc));
+  return out.map(o => ({ text: o.text, conf: o.conf }));
 }
 const OCR_STATUS = { 'loading tesseract core': 'OCR motoru yükleniyor', 'initializing tesseract': 'OCR motoru başlatılıyor', 'loading language traineddata': 'Dil verisi yükleniyor', 'loaded language traineddata': 'Dil verisi yüklendi', 'initializing api': 'Hazırlanıyor', 'initialized api': 'Hazır', 'recognizing text': 'Yazı tanınıyor' };
 // Bir fotoğrafı okur; hiç kalem çıkmazsa fiş yan durmuş olabilir diye 90° döndürüp yeniden dener, en iyi sonucu döndürür.
-async function recognizeSlipCanvas(worker, canvas, msg) {
+async function recognizeSlipCanvas(worker, im, msg) {
+  const canvas = im.canvas;
   const run = async cv => { const { data } = await withTimeout(worker.recognize(cv, {}, { text: true, blocks: true }), 150000, 'Okuma çok uzun sürdü. Fotoğrafı daha yakından ve net çekip tekrar deneyin.'); return ocrLines(data); };
   const itemCount = ls => parseSlipText(ls.map(l => l.text).join('\n'), ls.map(l => l.conf)).lines.length;
+  if (im.table) { // matbu tablo: hücre hücre oku; kalem çıkmazsa bütün görüntüyle devam et
+    try { const t = await recognizeTable(worker, im, run, msg); if (t.length && itemCount(t) > 0) return t; } catch (e) { console.warn('tablo okuma', e); }
+  }
   let best = await run(canvas); let bestN = itemCount(best);
   if (bestN === 0) {
     for (const deg of [90, -90]) {
@@ -2047,7 +2312,7 @@ async function runSlipLocal(files) {
   try {
     ocrProgressCb = m => { if (!m || !m.status) return; const p = typeof m.progress === 'number' && m.status === 'recognizing text' ? ' %' + Math.round(m.progress * 100) : ''; msg((OCR_STATUS[m.status] || m.status) + p); };
     const workerP = getOcrWorker(); workerP.catch(() => { }); // motor yüklenirken fotoğraf hazırlansın
-    const all = [], thumbs = [];
+    const all = [], thumbs = []; let tableRowsDebug = null;
     for (let i = 0; i < files.length; i++) {
       msg(files.length > 1 ? `Fotoğraf ${i + 1}/${files.length} hazırlanıyor…` : 'Fotoğraf hazırlanıyor…');
       const im = await preprocessForOcr(files[i]); thumbs.push({ dataUrl: im.dataUrl });
@@ -2055,8 +2320,9 @@ async function runSlipLocal(files) {
       const worker = await workerP;
       if (cancelled) return;
       msg(files.length > 1 ? `Fotoğraf ${i + 1}/${files.length} okunuyor…` : 'Yazı tanınıyor…');
-      const ls = await recognizeSlipCanvas(worker, im.canvas, msg);
-      im.canvas.width = im.canvas.height = 0; // belleği bırak
+      const ls = await recognizeSlipCanvas(worker, im, msg);
+      if (im.tableRows) tableRowsDebug = (tableRowsDebug || []).concat(im.tableRows);
+      im.canvas.width = im.canvas.height = 0; im.bin = null; // belleği bırak
       if (cancelled) return;
       all.push(...ls);
     }
@@ -2064,8 +2330,12 @@ async function runSlipLocal(files) {
     const parsed = parseSlipText(text, all.map(l => l.conf));
     if (!all.length) parsed.warnings.push('Fotoğrafta okunabilir yazı bulunamadı. Daha yakından, düz ve aydınlık çekmeyi deneyin.');
     else if (!parsed.lines.length) parsed.warnings.push('Satırlar "koli adedi + stok kodu" düzeninde tanınamadı. Ham metni açıp kontrol edin; satırları elle ekleyebilirsiniz.');
+    const weak = !parsed.lines.length || parsed.lines.filter(l => l.confidence !== 'high').length > parsed.lines.length / 2;
+    if (weak) parsed.warnings.push(cloudReady()
+      ? 'Telefondaki OCR bu el yazısında zorlandı. Fiş menüsünde "İnternetle" seçeneğiyle çok daha isabetli okunur.'
+      : 'Telefondaki OCR bu el yazısında zorlandı. Ayarlar → El yazısı fiş okuma → İnternetle okuma (ücretsiz Gemini anahtarı) çok daha isabetli sonuç verir; iPhone\'da "Metni Tara" ile "Metin yapıştır" yolu da iyi çalışır.');
     done = true; closeModal();
-    openSlipReview(parsed, slipMode, thumbs, { engine: 'ocr', rawText: text });
+    openSlipReview(parsed, slipMode, thumbs, { engine: 'ocr', rawText: text, tableRows: tableRowsDebug });
     releaseOcrWorkerLater();
   } catch (e) {
     done = true; closeModal(); console.error(e);
@@ -2157,9 +2427,13 @@ function slipSystemPrompt() {
   const base = `Sen toptan satış yapan bir firmanın EL YAZISI sipariş fişlerini dijitale aktaran bir asistansın. Sana fişin fotoğrafı verilir; fişi eksiksiz ve doğru okuyup istenen JSON yapısında döndürürsün.
 
 Fişin düzeni:
-- Üst kısımda genellikle müşteri (bayi, market) adı yazar; bazen tarih de bulunur.
-- Her sipariş satırı şu düzendedir: KOLİ ADEDİ, boşluk, STOK KODU. Örnekler: "5 A-1001", "12 B2002", "3  C 3001".
-- Stok kodu ve koli adedi dışında yazılmış her şey nottur (ör. "cuma teslim", "nakit", "acil", satır yanına yazılmış açıklamalar).
+- Fiş çoğu zaman MATBU bir formdur: başlıkta İsim/Adres/Şehir/Tarih/Sıra No gibi alanlar, altında Adet/Dz./Malın Cinsi/Cont./Fiyat/Yekün gibi sütunlu bir tablo bulunur. Matbu başlıklar ve etiketler içerik DEĞİLDİR; yalnızca elle yazılmış yazılar içeriktir.
+- Üst kısımda elle yazılmış müşteri (bayi, market, kişi) adı bulunur; bazen tarih de yazılır.
+- Her sipariş kalemi "KOLİ ADEDİ + STOK KODU" çiftidir. Adet çoğu zaman DAİRE İÇİNE alınmış bir sayıdır, yanındaki sütunda stok kodu yazar. Stok kodu sayı (ör. 43797) ya da harf+sayı (ör. KR085, DH666-78, A-1001) olabilir.
+- Personel tabloyu iki sütun grubu olarak kullanabilir: solda Adet + Malın Cinsi, sağda Fiyat + Yekün sütunlarına da yine adet + kod yazar. Sütun başlıklarına aldanma; her "daire içinde sayı + kod" çifti ayrı bir kalemdir. Okuma sırası: yukarıdan aşağıya satır satır, her satırda önce soldaki çift sonra sağdaki çift.
+- Sipariş kalemleri formun orta ve alt kısmındaki tabloda yazılır.
+- Kalemler ve müşteri adı dışında elle yazılmış her şey nottur (teslimat, ödeme, telefon, "acil", şehir, sıra numarası, satır yanına yazılmış açıklamalar).
+- İmza, paraf ve karalamaları (çoğu zaman farklı renkte, ör. kırmızı) tamamen yok say; not olarak bile alma.
 
 Kurallar:
 1. Her satırı fişteki sırayla, olduğu gibi oku. Satır atlama, satır uydurma. Üzeri çizilmiş satırları alma; gerekiyorsa warnings'e yaz.
@@ -2206,16 +2480,92 @@ function slipParseResponse(resp) {
   if (!data || !Array.isArray(data.lines)) throw new Error('Model yanıtı beklenen biçimde değil');
   return data;
 }
+/* ---- yol 3b: Google Gemini (ücretsiz anahtar; aistudio.google.com) ---- */
+const GEMINI_MODELS = [['gemini-3.8-flash', 'Gemini 3.8 Flash · önerilen, ücretsiz katman'], ['gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite · daha hızlı'], ['gemini-2.5-flash', 'Gemini 2.5 Flash · önceki nesil']];
+const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
+const GEMINI_URL = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent';
+function geminiModel() { return GEMINI_MODELS.some(m => m[0] === S.settings.geminiModel) ? S.settings.geminiModel : GEMINI_DEFAULT_MODEL; }
+function toGeminiSchema(s) { // JSON Schema → Gemini responseSchema (OpenAPI alt kümesi: anyOf/null yerine nullable, additionalProperties yok)
+  if (!s || typeof s !== 'object') return s;
+  if (Array.isArray(s.anyOf)) { const base = s.anyOf.find(x => x.type !== 'null') || {}; const out = toGeminiSchema({ ...base, description: s.description }); out.nullable = true; return out; }
+  const out = {};
+  if (s.type) out.type = String(s.type).toUpperCase();
+  if (s.description) out.description = s.description;
+  if (s.enum) out.enum = s.enum;
+  if (s.items) out.items = toGeminiSchema(s.items);
+  if (s.properties) { out.properties = {}; for (const k of Object.keys(s.properties)) out.properties[k] = toGeminiSchema(s.properties[k]); out.propertyOrdering = Object.keys(s.properties); }
+  if (s.required) out.required = s.required;
+  return out;
+}
+function geminiErrorMessage(status, body) {
+  const m = body && body.error && body.error.message ? body.error.message : '';
+  if (status === 400 && /api key/i.test(m)) return 'Gemini API anahtarı geçersiz. Ayarlar\'dan kontrol edin.';
+  if (status === 400) return 'İstek reddedildi' + (m ? ': ' + m : '.');
+  if (status === 401 || status === 403) return 'Bu anahtarın yetkisi yok' + (m ? ': ' + m : '.');
+  if (status === 404) return 'Seçili Gemini modeli bulunamadı. Ayarlar\'dan başka bir model seçin.';
+  if (status === 413) return 'Fotoğraf çok büyük; daha az fotoğraf seçin.';
+  if (status === 429) return 'Ücretsiz kota doldu ya da çok sık istek gönderildi. Bir dakika bekleyip tekrar deneyin; günlük sınır dolduysa yarın.';
+  if (status >= 500) return 'Google Gemini servisi şu an yoğun. Biraz sonra tekrar deneyin.';
+  return 'Hata ' + status + (m ? ': ' + m : '');
+}
+async function geminiCall(body, { signal, timeoutMs = 150000, retries = 2, model = geminiModel(), key = cloudKey('gemini') } = {}) {
+  if (!key) throw new Error('Gemini API anahtarı girilmemiş (Ayarlar → El yazısı fiş okuma → İnternetle okuma).');
+  for (let attempt = 0; ; attempt++) {
+    if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
+    const ctrl = new AbortController(); const onAbort = () => ctrl.abort();
+    if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let res = null, text = '', netErr = null;
+    try { res = await fetch(GEMINI_URL(model), { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body), signal: ctrl.signal }); text = await res.text(); }
+    catch (e) { netErr = e; }
+    finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
+    if (netErr) {
+      if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
+      if (ctrl.signal.aborted) throw new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.');
+      if (attempt < retries) { await sleep(1500 * (attempt + 1)); continue; }
+      throw new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.');
+    }
+    let json = null; try { json = JSON.parse(text); } catch (_) { }
+    if (res.ok) { if (!json) throw new Error('Sunucudan geçersiz yanıt geldi'); return json; }
+    const retryable = res.status === 408 || res.status === 429 || res.status >= 500;
+    if (retryable && attempt < retries) {
+      const ra = parseFloat(res.headers.get('retry-after'));
+      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 30) * 1000 : 3000 * (attempt + 1));
+      continue;
+    }
+    throw new Error(geminiErrorMessage(res.status, json));
+  }
+}
+function geminiRequestBody(images) {
+  const cat = slipCatalogBlock();
+  const sys = slipSystemPrompt() + (cat ? '\n\n' + cat.text : '');
+  const parts = [];
+  images.forEach((im, i) => { if (images.length > 1) parts.push({ text: `Fotoğraf ${i + 1}:` }); parts.push({ inlineData: { mimeType: 'image/jpeg', data: im.b64 } }); });
+  parts.push({ text: images.length > 1 ? `Bu ${images.length} fotoğraf aynı sipariş fişinin parçaları veya sayfalarıdır. Hepsini sırayla okuyup tek bir JSON döndür.` : 'Bu sipariş fişini oku ve JSON döndür.' });
+  return { systemInstruction: { parts: [{ text: sys }] }, contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: toGeminiSchema(SLIP_SCHEMA), temperature: 0 } };
+}
+function geminiParseResponse(resp) {
+  if (resp.promptFeedback && resp.promptFeedback.blockReason) throw new Error('Model bu fotoğrafı işlemeyi reddetti (' + resp.promptFeedback.blockReason + ').');
+  const cand = resp.candidates && resp.candidates[0];
+  if (!cand) throw new Error('Modelden yanıt gelmedi');
+  const txt = ((cand.content && cand.content.parts) || []).filter(p => !p.thought).map(p => p.text || '').join('');
+  if (cand.finishReason === 'MAX_TOKENS') throw new Error('Yanıt çok uzun kaldı; fişi parçalara bölüp tekrar deneyin.');
+  if (!txt.trim()) throw new Error('Model yanıt vermedi' + (cand.finishReason ? ' (' + cand.finishReason + ')' : '') + '.');
+  let data; try { data = JSON.parse(txt); } catch (_) { throw new Error('Model yanıtı çözümlenemedi'); }
+  if (!data || !Array.isArray(data.lines)) throw new Error('Model yanıtı beklenen biçimde değil');
+  return data;
+}
 async function runSlipCloud(files) {
   files = files.filter(f => f && f.size);
   if (!files.length) return;
-  if (!cloudReady()) { toast('Bulut seçeneği kapalı. Ayarlar → El yazısı fiş okuma → Gelişmiş.', 3500); return; }
+  if (!cloudReady()) { toast('İnternetle okuma kapalı. Ayarlar → El yazısı fiş okuma.', 3500); return; }
   if (files.length > 6) { toast('En fazla 6 fotoğraf seçin'); return; }
-  if (navigator.onLine === false) { toast('İnternet bağlantısı yok. Bulut okuma için bağlantı gerekir; telefonda OCR\'ı kullanın.', 4000); return; }
+  if (navigator.onLine === false) { toast('İnternet bağlantısı yok. Telefonda okumayı kullanın.', 4000); return; }
+  const provider = cloudProvider();
   const ctrl = new AbortController(); let done = false;
   openModal({
     title: 'Fiş okunuyor…', locked: true,
-    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted">Fotoğraf Anthropic'e gönderiliyor; el yazısı yapay zekâ ile çözülüyor. Genellikle 10–40 saniye sürer.</p></div>`,
+    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted">Fotoğraf ${esc(cloudLabel(provider))} servisine gönderiliyor; el yazısı yapay zekâ ile çözülüyor. Genellikle 10–40 saniye sürer.</p></div>`,
     buttons: [{ label: 'İptal' }], onClose: () => { if (!done) ctrl.abort(); }
   });
   try {
@@ -2223,15 +2573,16 @@ async function runSlipCloud(files) {
     for (const f of files) images.push(await prepareImage(f));
     if (ctrl.signal.aborted) return;
     const el = $('#slip-busy-msg'); if (el) el.textContent = images.length > 1 ? `${images.length} fotoğraf okunuyor…` : 'Fiş okunuyor…';
-    const resp = await aiCall(slipRequestBody(images), { signal: ctrl.signal });
-    const data = slipParseResponse(resp);
+    let data, model;
+    if (provider === 'anthropic') { const resp = await aiCall(slipRequestBody(images), { signal: ctrl.signal }); data = slipParseResponse(resp); model = resp.model || aiModel(); }
+    else { const resp = await geminiCall(geminiRequestBody(images), { signal: ctrl.signal }); data = geminiParseResponse(resp); model = resp.modelVersion || geminiModel(); }
     done = true; closeModal();
-    openSlipReview(data, slipMode, images, { engine: 'cloud', model: resp.model || aiModel() });
+    openSlipReview(data, slipMode, images, { engine: 'cloud', model });
     if (!data.lines.length) toast('Fişte satır bulunamadı. Fotoğrafı kontrol edin.', 3500);
   } catch (e) {
     done = true; closeModal();
     if (e && e.name === 'AbortError') { toast('İptal edildi'); return; }
-    openModal({ title: 'Fiş okunamadı', html: `<p>${esc(e && e.message || e)}</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
+    openModal({ title: 'Fiş okunamadı', html: `<p>${esc(e && e.message || e)}</p><p class="small muted">"Telefonda" okuma ve "Metin yapıştır" yolları internetsiz de çalışır.</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
   }
 }
 
@@ -2240,28 +2591,37 @@ function renderAiSettings() {
   const ls = $('#set-ocrlang');
   if (!ls.options.length) ls.innerHTML = OCR_LANGS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
   ls.value = ocrLangSetting();
+  const p = cloudProvider();
   $('#set-aicloud').checked = !!S.settings.aiCloud;
-  $('#set-aikey').value = S.settings.aiKey || '';
-  const sel = $('#set-aimodel');
-  if (!sel.options.length) sel.innerHTML = AI_MODELS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
-  sel.value = aiModel();
+  $('#set-aiprovider').value = p;
+  $('#set-aikey').value = cloudKey(p);
+  $('#set-aikey').placeholder = p === 'anthropic' ? 'sk-ant-…' : 'AIza…';
+  $('#set-aikey-label').textContent = p === 'anthropic' ? 'Anthropic API anahtarı' : 'Gemini API anahtarı';
+  const sel = $('#set-aimodel'); const list = p === 'anthropic' ? AI_MODELS : GEMINI_MODELS;
+  sel.innerHTML = list.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
+  sel.value = p === 'anthropic' ? aiModel() : geminiModel();
   $('#set-aihint').value = S.settings.aiHint || '';
   $('#set-cloud').open = !!S.settings.aiCloud;
-  $('#set-aistatus').textContent = !S.settings.aiCloud ? 'Bulut seçeneği kapalı; uygulama hiçbir sunucuya bağlanmaz.' : (S.settings.aiKey ? 'Bulut seçeneği açık ve anahtar kayıtlı.' : 'Bulut seçeneği açık ama API anahtarı girilmedi; menüde görünmez.');
+  $('#set-aistatus').textContent = !S.settings.aiCloud ? 'İnternetle okuma kapalı; uygulama hiçbir sunucuya bağlanmaz.' : (cloudKey(p) ? `İnternetle okuma açık (${cloudLabel(p)}), anahtar kayıtlı. Fiş menüsünde "İnternetle / Telefonda" seçimi çıkar.` : 'İnternetle okuma açık ama anahtar girilmedi; menüde çıkmaz.');
 }
 $('#set-ocrlang').addEventListener('change', e => { S.settings.ocrLang = e.target.value; persist('settings').catch(showErr); });
 $('#set-aicloud').addEventListener('change', e => { S.settings.aiCloud = e.target.checked; persist('settings').catch(showErr); renderAiSettings(); });
-$('#set-aikey').addEventListener('change', e => { S.settings.aiKey = e.target.value.trim(); persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aiprovider').addEventListener('change', e => { S.settings.aiProvider = e.target.value === 'anthropic' ? 'anthropic' : 'gemini'; persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aikey').addEventListener('change', e => { const v = e.target.value.trim(); if (cloudProvider() === 'anthropic') S.settings.aiKey = v; else S.settings.geminiKey = v; persist('settings').catch(showErr); renderAiSettings(); });
 $('#set-aikey-toggle').addEventListener('click', () => { const i = $('#set-aikey'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#set-aikey-toggle').textContent = show ? 'Gizle' : 'Göster'; });
-$('#set-aimodel').addEventListener('change', e => { S.settings.aiModel = e.target.value; persist('settings').catch(showErr); });
+$('#set-aimodel').addEventListener('change', e => { if (cloudProvider() === 'anthropic') S.settings.aiModel = e.target.value; else S.settings.geminiModel = e.target.value; persist('settings').catch(showErr); });
 $('#set-aihint').addEventListener('change', e => { S.settings.aiHint = e.target.value.trim(); persist('settings').catch(showErr); });
 $('#set-aitest').addEventListener('click', async () => {
   const key = $('#set-aikey').value.trim(); if (!key) { toast('Önce API anahtarını girin'); return; }
-  S.settings.aiKey = key; S.settings.aiModel = $('#set-aimodel').value; await persist('settings').catch(showErr);
+  const p = cloudProvider();
+  if (p === 'anthropic') { S.settings.aiKey = key; S.settings.aiModel = $('#set-aimodel').value; } else { S.settings.geminiKey = key; S.settings.geminiModel = $('#set-aimodel').value; }
+  await persist('settings').catch(showErr);
   const btn = $('#set-aitest'); btn.disabled = true; const st = $('#set-aistatus'); st.textContent = 'Bağlantı deneniyor…';
   try {
-    const r = await aiCall({ model: aiModel(), max_tokens: 256, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Sadece "TAMAM" yaz.' }] }, { retries: 0, timeoutMs: 30000 });
-    st.textContent = `Bağlantı başarılı (${r.model || aiModel()}).`; toast('Bağlantı başarılı');
+    let label;
+    if (p === 'anthropic') { const r = await aiCall({ model: aiModel(), max_tokens: 256, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Sadece "TAMAM" yaz.' }] }, { retries: 0, timeoutMs: 30000 }); label = r.model || aiModel(); }
+    else { const r = await geminiCall({ contents: [{ role: 'user', parts: [{ text: 'Sadece "TAMAM" yaz.' }] }], generationConfig: { maxOutputTokens: 256 } }, { retries: 0, timeoutMs: 30000 }); label = r.modelVersion || geminiModel(); }
+    st.textContent = `Bağlantı başarılı (${label}).`; toast('Bağlantı başarılı');
   } catch (e) { st.textContent = 'Bağlantı başarısız: ' + (e && e.message || e); }
   finally { btn.disabled = false; }
 });
@@ -2294,7 +2654,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
 })();
 </script>
 </body>
