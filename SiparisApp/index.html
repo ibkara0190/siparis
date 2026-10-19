@@ -227,6 +227,25 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32px;display:flex;align-items:center}
 @media (prefers-reduced-motion:reduce){.spinner{animation-duration:2s}}
 @media (prefers-reduced-motion:reduce){.item.flash{animation:none}}
+/* Stok takibi: Ürünler sekmesindeki kart. Sekmeler (Ürün sor / Azalan / Kim ne almış), ürün paneli ve hareket satırları. */
+.tabs{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.tabs button{flex:1;min-height:40px;border:0;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:4px 6px}
+.tabs button.active{background:var(--accent);color:var(--accent-fg)}
+.tabs button.active .chip{background:rgba(255,255,255,.28);color:inherit}
+.stockrow{display:flex;align-items:center;gap:10px;width:100%;padding:8px 0;border:0;border-bottom:1px solid var(--line);background:none;text-align:left;font:inherit;font-size:14px;color:var(--fg);cursor:pointer}
+.stockrow:last-of-type{border-bottom:0}
+.stockrow .grow .sub{color:var(--muted);font-size:13px}
+.stockrow .qty{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;text-align:right}
+.qty.low,.stock-big.low{color:var(--warn)}
+.qty.neg,.stock-big.neg{color:var(--danger)}
+.stock-big{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:4px}
+.moverow{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.moverow:last-of-type{border-bottom:0}
+.moverow .d{color:var(--muted);font-size:13px;flex:none;font-variant-numeric:tabular-nums}
+.moverow .grow{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.moverow .q{font-weight:700;flex:none;font-variant-numeric:tabular-nums}
+.stock-th{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);flex:none}
+.stock-th input{width:64px;min-height:36px;padding:4px 6px;text-align:center;font-weight:700}
 </style>
 </head>
 <body>
@@ -342,13 +361,44 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
           <button class="btn primary" id="prod-pick">Excel yükle</button>
           <button class="btn danger" id="prod-clear" hidden>Listeyi sil</button>
         </div>
-        <p class="small muted">Sütunlar: Stok Kodu, Ürün Açıklaması, Barkod, Koli İçi Adet, Fiyat. Sütun adları farklıysa yükleme sırasında eşleştirirsiniz. Yeni bir dosya yüklemek eski listenin yerine geçer; kayıtlı siparişler etkilenmez.</p>
+        <p class="small muted">Sütunlar: Stok Kodu, Ürün Açıklaması, Barkod, Koli İçi Adet, Fiyat ve isteğe bağlı Stok sayımı. Sütun adları farklıysa yükleme sırasında eşleştirirsiniz. Yeni bir dosya yüklemek eski listenin yerine geçer; kayıtlı siparişler ve stok sayımları etkilenmez.</p>
       </div>
       <div id="prod-map" class="card" hidden></div>
       <div class="card" id="prod-search-card">
         <h2>Üründe ara</h2>
         <input id="prod-search" type="search" placeholder="Stok kodu, ad veya barkod" autocomplete="off">
         <div id="prod-results"></div>
+      </div>
+      <!-- STOK TAKİBİ: kalan = sayım − sayımdan sonra listelere yazılan koliler. Sipariş yazmayı hiçbir zaman engellemez. -->
+      <div class="card" id="stock-card">
+        <div class="row" style="justify-content:space-between">
+          <h2>Stok takibi</h2>
+          <button type="button" class="btn sm" id="stock-xlsx" title="Azalan stok, kim ne almış ve ürün bazında son alanlar; paylaşılabilir Excel dosyası">📊 Excel oluştur</button>
+        </div>
+        <p class="small muted" id="stock-summary"></p>
+        <div class="tabs" id="stock-tabs">
+          <button type="button" data-tab="ask" class="active">Ürün sor</button>
+          <button type="button" data-tab="low">Azalan <span class="chip" id="stock-low-n">0</span></button>
+          <button type="button" data-tab="moves">Kim ne almış</button>
+        </div>
+        <div id="stock-tab-ask">
+          <div class="search-wrap">
+            <input id="stock-search" type="search" placeholder="Stok kodu veya ürün adı yazın" autocomplete="off" autocapitalize="off" autocorrect="off" enterkeyhint="search">
+            <div id="stock-suggest" class="suggest" hidden></div>
+          </div>
+          <div id="stock-detail" style="margin-top:10px"></div>
+        </div>
+        <div id="stock-tab-low" hidden>
+          <div class="row" style="justify-content:space-between">
+            <span class="small muted grow">Kalanı eşik ve altında olan ürünler; son sipariş yazılanlar üstte.</span>
+            <label class="stock-th">Eşik <input id="stock-threshold" type="number" inputmode="numeric" min="0" step="1" aria-label="Azalan stok eşiği (koli)"> koli</label>
+          </div>
+          <div id="stock-low"></div>
+        </div>
+        <div id="stock-tab-moves" hidden>
+          <input id="stock-moves-search" type="search" placeholder="Müşteri, stok kodu veya ürün adıyla süz" autocomplete="off">
+          <div id="stock-moves" style="margin-top:6px"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -430,6 +480,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
           <dt>Sürüm</dt><dd id="info-version"></dd>
           <dt>Ürün</dt><dd id="info-products"></dd>
           <dt>Liste</dt><dd id="info-lists"></dd>
+          <dt>Stok takibi</dt><dd id="info-stock"></dd>
           <dt>Depolama</dt><dd id="info-storage"></dd>
         </dl>
         <p class="small muted">Veriler bu telefonda şifreli saklanır. Uygulama hiçbir sunucuya veri göndermez; fiş okuma da telefonda yapılır. (Yalnızca isteğe bağlı bulut seçeneği açılırsa fiş fotoğrafı o servise gider.)</p>
@@ -537,7 +588,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.3.2';
+const APP_VERSION = '1.4.0';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -635,11 +686,11 @@ const Crypto = {
 };
 
 /* ---------- durum ---------- */
-const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', mikroQty: 'adet', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', mikroQty: 'adet', lowStock: 10, hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
 let KEY = null, META = null, cur = null;
 let slip = null, slipMode = 'new'; // fiş okuma: kontrol ekranındaki geçici veri ve hedef ('new' | 'current')
 let pendingShareText = ''; // Android'de başka uygulamadan "Paylaş" ile gelen metin (manifest share_target), kilit açılınca işlenir
-const S = { products: [], productMeta: null, lists: [], settings: { ...DEF_SETTINGS } };
+const S = { products: [], productMeta: null, lists: [], stock: {}, settings: { ...DEF_SETTINGS } }; // stock: fold(kod) → { code, name, qty (sayılan koli), at (sayım zamanı, ms) }
 let IDX = { byCode: new Map(), byBarcode: new Map() };
 
 function buildIndex() {
@@ -653,15 +704,16 @@ function buildIndex() {
 function plainProducts() { return S.products.map(p => ({ code: p.code, barcode: p.barcode || '', name: p.name, unit: p.unit ?? null, price: p.price ?? null })); }
 async function persist(part) {
   if (!KEY) return;
-  const data = part === 'products' ? { products: plainProducts(), meta: S.productMeta } : part === 'lists' ? S.lists : S.settings;
+  const data = part === 'products' ? { products: plainProducts(), meta: S.productMeta } : part === 'lists' ? S.lists : part === 'stock' ? S.stock : S.settings;
   await DB.set(part, await Crypto.encrypt(KEY, data));
 }
 const persistLists = debounce(() => { persist('lists').then(() => setSaved(true)).catch(showErr); }, 350);
 function flushSaves() { persistLists.flush(); }
 async function loadAll() {
-  const [p, l, s] = await Promise.all([DB.get('products'), DB.get('lists'), DB.get('settings')]);
+  const [p, l, s, st] = await Promise.all([DB.get('products'), DB.get('lists'), DB.get('settings'), DB.get('stock')]);
   if (p) { const d = await Crypto.decrypt(KEY, p); S.products = d.products || []; S.productMeta = d.meta || null; } else { S.products = []; S.productMeta = null; }
   S.lists = l ? await Crypto.decrypt(KEY, l) : [];
+  S.stock = st ? (await Crypto.decrypt(KEY, st)) || {} : {};
   S.settings = { ...DEF_SETTINGS, ...(s ? await Crypto.decrypt(KEY, s) : {}) };
   buildIndex();
 }
@@ -788,7 +840,7 @@ function askPin(title, msg) {
 let fails = 0, lockUntil = 0;
 function lock() {
   flushSaves(); KEY = null; cur = null; slip = null;
-  S.products = []; S.lists = []; S.productMeta = null; buildIndex();
+  S.products = []; S.lists = []; S.productMeta = null; S.stock = {}; buildIndex();
   closeScanner(); closeModal();
   $('#lock-pin').value = ''; $('#lock-msg').hidden = true;
   showView('lock');
@@ -831,7 +883,7 @@ $('#setup-form').addEventListener('submit', async e => {
     await DB.set('meta', META);
     KEY = key;
     S.settings = { ...DEF_SETTINGS, company: $('#setup-company').value.trim() };
-    S.lists = []; S.products = []; S.productMeta = null; buildIndex();
+    S.lists = []; S.products = []; S.productMeta = null; S.stock = {}; buildIndex();
     await persist('settings');
     try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (_) { }
     showView('lists');
@@ -1041,7 +1093,15 @@ function renderSuggest() {
     sugBox.hidden = false; return;
   }
   const res = search(q, 25);
-  const rows = res.map(p => `<button type="button" class="sug" data-code="${esc(p.code)}"><div class="code">${esc(p.code)}</div><div>${esc(p.name)}</div><div class="sub">${p.unit ? 'Koli içi ' + esc(fmtQty(p.unit)) + ' · ' : ''}${p.price != null ? esc(fmtMoney(p.price)) + ' ₺' : ''}${p.barcode ? ' · ' + esc(p.barcode) : ''}</div></button>`);
+  const rows = res.map(p => {
+    const parts = [];
+    if (p.unit) parts.push('Koli içi ' + esc(fmtQty(p.unit)));
+    if (p.price != null) parts.push(esc(fmtMoney(p.price)) + ' ₺');
+    if (p.barcode) parts.push(esc(p.barcode));
+    const st = S.stock[p._fc] ? stockStatus(p._fc) : null; // bilgi amaçlı; stok azalsa da ekleme engellenmez
+    if (st) parts.push(`<b class="${st.remaining < 0 ? 'qty neg' : st.remaining <= lowThreshold() ? 'qty low' : ''}">kalan ${esc(fmtQty(st.remaining))} koli</b>`);
+    return `<button type="button" class="sug" data-code="${esc(p.code)}"><div class="code">${esc(p.code)}</div><div>${esc(p.name)}</div><div class="sub">${parts.join(' · ')}</div></button>`;
+  });
   rows.push(`<button type="button" class="sug add-custom" data-act="custom">${res.length ? 'Aradığım bu değil, elle ekle' : `"${esc(q)}" listede yok, elle ekle`}</button>`);
   sugBox.innerHTML = rows.join(''); sugBox.hidden = false;
 }
@@ -1072,7 +1132,7 @@ async function offerCustom(q) {
   if (v) { addCustom(v); sInput.value = ''; toast('Excel dışı ürün eklendi'); }
   sInput.focus();
 }
-document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) { hideSuggest(); hideCustomerSuggest(); } });
+document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) { hideSuggest(); hideCustomerSuggest(); hideStockSuggest(); } });
 
 /* geri / menü / kaydet */
 function leaveEditor() {
@@ -1124,6 +1184,7 @@ function infoCardHTML(p) {
       if (p.unit) rows.push(['Adet fiyatı', esc(fmtMoney(p.price / p.unit)) + ' ₺']);
     }
   } else rows.push(['Fiyat', '—']);
+  if (S.stock[p._fc]) { const st = stockStatus(p._fc); rows.push(['Kalan stok', esc(fmtQty(st.remaining)) + ' koli' + (st.last ? ` · son alan: ${esc(st.last.customer)} (${esc(fmtDate(st.last.date))})` : '')]); }
   return `<div class="infocard"><div class="infocard-code">${esc(p.code)}</div><div class="infocard-name">${esc(p.name)}</div><dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></div>`;
 }
 function showLookup(p) {
@@ -1406,6 +1467,7 @@ function guessMapping(headers) {
   assign('name', /aciklama|urun\s*ad|urun\s*tanim|malzeme\s*ad|tanim|isim|^ad[i]?$|description|^name$|product\s*name|^urun$/);
   assign('unit', /koli\s*ic|koli\s*adet|kolideki|adet\s*\/\s*koli|birim\s*adet|paket\s*ic|ic\s*adet|kutu\s*ic/);
   assign('price', /fiyat|price|tutar/);
+  assign('stock', /(stok|depo|eldeki)\s*(miktar|adet|mevcut|bakiye|durum|koli)|mevcut|bakiye|^miktar$|^stok$|^depo$|quantity|^qty$|stock|on\s*hand/); // stok sayımı (kod sütunu daha önce alındığı için "stok kodu" buraya düşmez)
   return g;
 }
 $('#prod-pick').addEventListener('click', () => $('#prod-file').click());
@@ -1416,7 +1478,8 @@ $('#prod-file').addEventListener('change', async e => {
     const buf = await f.arrayBuffer();
     const isCsv = /\.(csv|txt)$/i.test(f.name);
     // CSV: raw=true hücreleri metin bırakır; "189,90" gibi Türkçe ondalıklar ve başı sıfırlı barkodlar bozulmaz.
-    const wb = isCsv ? XLSX.read(buf, { type: 'array', raw: true, codepage: 65001 }) : XLSX.read(buf, { type: 'array', cellDates: false });
+    const bytes = new Uint8Array(buf); // Uint8Array: başka bir pencereden (paylaşım, test) gelen dosyada ArrayBuffer tanınmayabiliyor
+    const wb = isCsv ? XLSX.read(bytes, { type: 'array', raw: true, codepage: 65001 }) : XLSX.read(bytes, { type: 'array', cellDates: false });
     if (!wb.SheetNames.length) throw new Error('Dosyada sayfa bulunamadı');
     pending = { wb, fileName: f.name };
     renderMapping(wb.SheetNames[0]);
@@ -1444,16 +1507,20 @@ function renderMapping(sheetName) {
     <label class="field"><span>Koli içi adet</span><select id="map-unit">${opt(g.unit)}</select></label>
     <label class="field"><span>Fiyat</span><select id="map-price">${opt(g.price)}</select></label>
     <div class="field"><span>Excel'deki fiyat</span><div class="radios"><label><input type="radio" name="map-basis" value="adet"${basis === 'adet' ? ' checked' : ''}> Adet fiyatı</label><label><input type="radio" name="map-basis" value="koli"${basis === 'koli' ? ' checked' : ''}> Koli fiyatı</label></div></div>
+    <label class="field"><span>Stok sayımı (isteğe bağlı)</span><select id="map-stock">${opt(g.stock)}</select></label>
+    <div class="field" id="map-stockbasis-box"><span>Excel'deki stok</span><div class="radios"><label><input type="radio" name="map-stockbasis" value="koli" checked> Koli</label><label><input type="radio" name="map-stockbasis" value="adet"> Adet (koli içi adede bölünür)</label></div>
+      <p class="small muted">Seçilirse her ürünün stok sayımı bu sütundan alınır, sayım tarihi yükleme anı olur; boş hücreler eski sayımı korur. Stok takibi sipariş yazmayı engellemez.</p></div>
     <div id="map-preview" class="preview"></div>
     <p id="map-err" class="msg danger" hidden></p>
     <div class="row"><button type="button" class="btn" id="map-cancel">Vazgeç</button><button type="button" class="btn primary" id="map-ok">İçe aktar</button></div>`;
   $('#prod-map').hidden = false;
   const preview = () => {
     const mi = mapIdx();
-    const cols = [['Stok kodu', mi.code], ['Açıklama', mi.name], ['Barkod', mi.barcode], ['Koli içi', mi.unit], ['Fiyat', mi.price]].filter(c => c[1] >= 0);
+    const cols = [['Stok kodu', mi.code], ['Açıklama', mi.name], ['Barkod', mi.barcode], ['Koli içi', mi.unit], ['Fiyat', mi.price], ['Stok', mi.stock]].filter(c => c[1] >= 0);
     $('#map-preview').innerHTML = `<table><tr>${cols.map(c => `<th>${esc(c[0])}</th>`).join('')}</tr>${data.slice(0, 3).map(r => `<tr>${cols.map(c => `<td>${esc(cellStr(r[c[1]]))}</td>`).join('')}</tr>`).join('')}</table>`;
+    $('#map-stockbasis-box').hidden = mi.stock < 0;
   };
-  const mapIdx = () => ({ code: +$('#map-code').value, name: +$('#map-name').value, barcode: +$('#map-barcode').value, unit: +$('#map-unit').value, price: +$('#map-price').value });
+  const mapIdx = () => ({ code: +$('#map-code').value, name: +$('#map-name').value, barcode: +$('#map-barcode').value, unit: +$('#map-unit').value, price: +$('#map-price').value, stock: +$('#map-stock').value });
   $$('#prod-map select').forEach(s => s.addEventListener('change', preview));
   const sheetSel = $('#map-sheet'); if (sheetSel) sheetSel.addEventListener('change', () => renderMapping(sheetSel.value));
   $('#map-cancel').addEventListener('click', () => { pending = null; $('#prod-map').hidden = true; });
@@ -1469,13 +1536,25 @@ function renderMapping(sheetName) {
       map.set(fold(code), { code, name, barcode: mi.barcode >= 0 ? cellStr(r[mi.barcode]) : '', unit: mi.unit >= 0 ? parseNum(r[mi.unit]) : null, price: mi.price >= 0 ? parseNum(r[mi.price]) : null });
     }
     if (!map.size) { err.textContent = 'Hiç ürün okunamadı. Sütun seçimlerini kontrol edin.'; err.hidden = false; return; }
+    // Stok sayımı sütunu: dolu hücreler o ürünün sayımı olur (sayım anı = şimdi); boş hücre eski sayımı korur.
+    let stockSet = 0;
+    if (mi.stock >= 0 && mi.stock !== mi.code && mi.stock !== mi.name) {
+      const sb = ($('input[name="map-stockbasis"]:checked') || {}).value || 'koli'; const now = Date.now();
+      for (const r of data) {
+        const code = cellStr(r[mi.code]), name = cellStr(r[mi.name]); if (!code || !name) continue;
+        const v = parseNum(r[mi.stock]); if (v == null) continue;
+        const unit = mi.unit >= 0 ? parseNum(r[mi.unit]) : null;
+        const koli = sb === 'adet' && unit > 0 ? v / unit : v;
+        S.stock[fold(code)] = { code, name, qty: Math.round(koli * 1000) / 1000, at: now, src: 'excel' }; stockSet++;
+      }
+    }
     S.products = [...map.values()];
-    S.productMeta = { fileName: pending.fileName, sheet: sheetName, importedAt: Date.now(), count: map.size, skipped, columns: { code: headers[mi.code], name: headers[mi.name], barcode: headers[mi.barcode] || '', unit: headers[mi.unit] || '', price: headers[mi.price] || '' } };
+    S.productMeta = { fileName: pending.fileName, sheet: sheetName, importedAt: Date.now(), count: map.size, skipped, columns: { code: headers[mi.code], name: headers[mi.name], barcode: headers[mi.barcode] || '', unit: headers[mi.unit] || '', price: headers[mi.price] || '', stock: headers[mi.stock] || '' } };
     S.settings.priceBasis = ($('input[name="map-basis"]:checked') || {}).value || 'koli';
     buildIndex();
-    try { await persist('products'); await persist('settings'); } catch (e) { showErr(e); return; }
+    try { await persist('products'); await persist('settings'); if (stockSet) await persist('stock'); } catch (e) { showErr(e); return; }
     pending = null; $('#prod-map').hidden = true;
-    toast(`${map.size} ürün yüklendi${skipped ? ', ' + skipped + ' satır atlandı' : ''}`, 3000);
+    toast(`${map.size} ürün yüklendi${skipped ? ', ' + skipped + ' satır atlandı' : ''}${stockSet ? ', ' + stockSet + ' ürünün stok sayımı alındı' : ''}`, 3500);
     renderProducts();
   });
   preview();
@@ -1494,14 +1573,270 @@ function renderProducts() {
   $('#prod-clear').hidden = !S.products.length;
   $('#prod-search-card').hidden = !S.products.length;
   renderProductSearch();
+  renderStock();
 }
 function renderProductSearch() {
   const q = $('#prod-search').value.trim(); const box = $('#prod-results');
   if (!q) { box.innerHTML = `<p class="small muted">${S.products.length} ürün içinde arayın.</p>`; return; }
   const res = search(q, 50);
-  box.innerHTML = res.length ? res.map(p => `<div class="prodrow"><div><span class="code">${esc(p.code)}</span> ${esc(p.name)}</div><div class="sub">${p.barcode ? 'Barkod ' + esc(p.barcode) + ' · ' : ''}${p.unit ? 'Koli içi ' + esc(fmtQty(p.unit)) + ' · ' : ''}${p.price != null ? esc(fmtMoney(p.price)) + ' ₺' : 'fiyat yok'}</div></div>`).join('') : '<p class="small muted">Sonuç yok.</p>';
+  box.innerHTML = res.length ? res.map(p => { const st = S.stock[p._fc] ? stockStatus(p._fc) : null; return `<div class="prodrow"><div><span class="code">${esc(p.code)}</span> ${esc(p.name)}</div><div class="sub">${p.barcode ? 'Barkod ' + esc(p.barcode) + ' · ' : ''}${p.unit ? 'Koli içi ' + esc(fmtQty(p.unit)) + ' · ' : ''}${p.price != null ? esc(fmtMoney(p.price)) + ' ₺' : 'fiyat yok'}${st ? ' · kalan stok ' + esc(fmtQty(st.remaining)) + ' koli' : ''}</div></div>`; }).join('') : '<p class="small muted">Sonuç yok.</p>';
 }
 $('#prod-search').addEventListener('input', renderProductSearch);
+
+/* ---------- stok takibi ----------
+   Stok listelerden türetilir: kalan = sayım (koli) − sayım tarihinden sonra yazılan listelerdeki koliler.
+   Sayım elle (Ürünler → Stok takibi → Sayım gir / Stok ekle) ya da Excel yüklerken "Stok sayımı" sütunundan girilir.
+   Hareketler (kim ne almış) tüm listelerden okunur, en yeni üstte. Hiçbir koşulda sipariş yazmayı engellemez. */
+let MOV = { sig: '', all: [], byCode: new Map() }; // listelerden türetilen hareketler; liste sayısı/son değişiklik/kalem sayısı değişince yeniden hesaplanır
+let stockTab = 'ask', stockSel = null, stockLowMax = 25, stockMovesMax = 30, stockDetailMax = 15;
+function lowThreshold() { const v = Number(S.settings.lowStock); return Number.isFinite(v) && v >= 0 ? v : 10; }
+const fmtDateTime = ms => { const d = new Date(Number(ms) || 0); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const movCmp = (a, b) => (b.date > a.date ? 1 : b.date < a.date ? -1 : 0) || b.at - a.at; // en yeni üstte: önce liste tarihi, sonra yazılma anı
+function movements() {
+  let m = 0, n = 0; for (const l of S.lists) { if (l.updatedAt > m) m = l.updatedAt; n += (l.items || []).length; }
+  const sig = S.lists.length + ':' + m + ':' + n;
+  if (MOV.sig === sig) return MOV;
+  const all = [], byCode = new Map();
+  for (const l of S.lists) {
+    const at = l.createdAt || l.updatedAt || 0, date = l.date || '', customer = String(l.customer || '').trim() || 'İsimsiz liste', listNo = String(l.id || '').slice(-6).toUpperCase();
+    for (const it of l.items || []) {
+      const qty = Number(it.qty) || 0; if (qty <= 0) continue;
+      const code = String(it.code || '').trim();
+      const mv = { fc: fold(code), code, name: it.name || '', qty, custom: !!it.custom, customer, date, at, listId: l.id, listNo };
+      all.push(mv);
+      if (mv.fc) { let a = byCode.get(mv.fc); if (!a) byCode.set(mv.fc, a = []); a.push(mv); }
+    }
+  }
+  all.sort(movCmp); for (const a of byCode.values()) a.sort(movCmp);
+  MOV = { sig, all, byCode };
+  return MOV;
+}
+function stockStatus(fc) {
+  const moves = movements().byCode.get(fc) || [];
+  const entry = S.stock[fc] || null;
+  let used = 0, total = 0;
+  for (const m of moves) { total += m.qty; if (entry && m.at >= entry.at) used += m.qty; }
+  return { fc, entry, used, total, remaining: entry ? Math.round((entry.qty - used) * 1000) / 1000 : null, last: moves[0] || null, moves };
+}
+function stockProduct(fc) { // kod → { fc, code, name, p }; katalogda yoksa sayım kaydından ya da listelerden
+  if (!fc) return null;
+  const p = IDX.byCode.get(fc); if (p) return { fc, code: p.code, name: p.name, p };
+  const e = S.stock[fc]; if (e) return { fc, code: e.code, name: e.name || '', p: null };
+  const mv = movements().byCode.get(fc); if (mv && mv.length) return { fc, code: mv[0].code, name: mv[0].name, p: null };
+  return null;
+}
+function stockUniverse() { // aranabilir tüm kodlar: katalog + sayımı olanlar + listelerde geçenler (Excel dışı kalemler dahil)
+  const seen = new Map();
+  for (const p of S.products) seen.set(p._fc, { fc: p._fc, code: p.code, name: p.name, p });
+  for (const fc of Object.keys(S.stock)) if (!seen.has(fc)) seen.set(fc, { fc, code: S.stock[fc].code, name: S.stock[fc].name || '', p: null });
+  for (const [fc, a] of movements().byCode) if (!seen.has(fc)) seen.set(fc, { fc, code: a[0].code, name: a[0].name, p: null });
+  return seen;
+}
+function searchStock(q, limit = 25) {
+  const fq = fold(q); if (!fq) return [];
+  const toks = fq.split(' ').filter(Boolean);
+  const out = [];
+  for (const u of stockUniverse().values()) {
+    const fn = fold(u.name); let score = -1;
+    if (u.fc === fq) score = 0; else if (u.fc.startsWith(fq)) score = 1; else if (u.fc.includes(fq)) score = 2; else if (toks.every(t => (u.fc + ' ' + fn).includes(t))) score = 3;
+    if (score >= 0) out.push({ u, score });
+  }
+  out.sort((a, b) => a.score - b.score || a.u.code.localeCompare(b.u.code, 'tr'));
+  return out.slice(0, limit).map(x => x.u);
+}
+function trackedRows() {
+  return Object.keys(S.stock).map(fc => { const u = stockProduct(fc) || { fc, code: S.stock[fc].code, name: '', p: null }; return { ...u, ...stockStatus(fc) }; });
+}
+function lowStockRows(th = lowThreshold()) { // eşik ve altı; sipariş yazılanlar üstte (en son yazılan en üstte), sonra kalanı en az olan
+  const rows = trackedRows().filter(r => r.remaining != null && r.remaining <= th);
+  rows.sort((a, b) => {
+    if (!!a.last !== !!b.last) return a.last ? -1 : 1;
+    if (a.last && b.last) { const c = movCmp(a.last, b.last); if (c) return c; }
+    return a.remaining - b.remaining || a.code.localeCompare(b.code, 'tr');
+  });
+  return rows;
+}
+function stockAtFromDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m || iso >= todayISO()) return Date.now();
+  return new Date(+m[1], +m[2] - 1, +m[3], 0, 0, 0, 0).getTime(); // o günün başı: o gün ve sonrasında yazılan listeler düşülür
+}
+function stockCountDialog(u) {
+  const st = stockStatus(u.fc); let saved = false;
+  openModal({
+    title: 'Stok sayımı', html: `<p><span class="code">${esc(u.code)}</span> ${esc(u.name)}</p>
+      <label class="field"><span>Sayılan stok (koli)</span><input id="sc-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="${st.entry ? 'şu an hesaplanan: ' + esc(fmtQty(st.remaining)) : 'örn. 24'}"></label>
+      <label class="field"><span>Sayım tarihi</span><input id="sc-date" type="date" value="${todayISO()}" max="${todayISO()}"></label>
+      <p class="small muted">Bu tarihten itibaren yazılan listelerdeki koliler sayımdan düşülür. Stok sıfıra inse de sipariş yazılabilir.</p>
+      <p id="sc-err" class="msg danger" hidden></p>`,
+    buttons: [{ label: 'Vazgeç' }, {
+      label: 'Kaydet', cls: 'primary', onClick: async close => {
+        const q = parseNum($('#sc-qty').value);
+        if (q == null || q < 0) { const e = $('#sc-err'); e.textContent = 'Koli sayısı girin (0 veya daha büyük).'; e.hidden = false; $('#sc-qty').focus(); return; }
+        S.stock[u.fc] = { code: u.code, name: u.name || '', qty: q, at: stockAtFromDate($('#sc-date').value), src: 'manual' };
+        try { await persist('stock'); } catch (e) { showErr(e); }
+        saved = true; close(); toast('Sayım kaydedildi');
+      }
+    }],
+    onClose: () => { if (saved) renderStock(); }
+  });
+  setTimeout(() => $('#sc-qty').focus(), 50);
+}
+function stockAddDialog(u) { // gelen mal: yeni sayım = şu anki kalan + gelen, sayım anı = şimdi
+  const st = stockStatus(u.fc); if (!st.entry) return stockCountDialog(u);
+  let saved = false;
+  openModal({
+    title: 'Stok girişi (gelen mal)', html: `<p><span class="code">${esc(u.code)}</span> ${esc(u.name)}</p><p class="small muted">Şu an kalan: <b>${esc(fmtQty(st.remaining))} koli</b></p>
+      <label class="field"><span>Gelen koli</span><input id="sa-qty" type="number" inputmode="decimal" min="0" step="any" placeholder="örn. 50"></label>
+      <p id="sa-err" class="msg danger" hidden></p>`,
+    buttons: [{ label: 'Vazgeç' }, {
+      label: 'Ekle', cls: 'primary', onClick: async close => {
+        const n = parseNum($('#sa-qty').value);
+        if (n == null || n <= 0) { const e = $('#sa-err'); e.textContent = 'Gelen koli sayısını girin.'; e.hidden = false; $('#sa-qty').focus(); return; }
+        S.stock[u.fc] = { code: u.code, name: u.name || '', qty: Math.round((st.remaining + n) * 1000) / 1000, at: Date.now(), src: 'add' };
+        try { await persist('stock'); } catch (e) { showErr(e); }
+        saved = true; close(); toast(`${fmtQty(n)} koli eklendi`);
+      }
+    }],
+    onClose: () => { if (saved) renderStock(); }
+  });
+  setTimeout(() => $('#sa-qty').focus(), 50);
+}
+async function stockUntrack(u) {
+  if (!await confirmDlg('Takip bırakılsın mı?', `<b>${esc(u.code)}</b> için stok sayımı silinir; kim ne almış bilgisi listelerden okunmaya devam eder.`, { ok: 'Bırak', danger: true })) return;
+  delete S.stock[u.fc];
+  try { await persist('stock'); } catch (e) { showErr(e); }
+  renderStock();
+}
+function stockSelect(fc, { scroll = true } = {}) {
+  stockSel = fc || null; stockDetailMax = 15; stockTab = 'ask';
+  renderStock();
+  if (scroll) { const el = $('#stock-card'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+}
+function qtyCls(rem) { return rem == null ? '' : rem < 0 ? ' neg' : rem <= lowThreshold() ? ' low' : ''; }
+function renderStock() {
+  const mv = movements(); const tracked = Object.keys(S.stock).length; const low = lowStockRows();
+  $('#stock-low-n').textContent = low.length;
+  $('#stock-summary').innerHTML = tracked
+    ? `Takipte <b>${tracked}</b> ürün, <b>${low.length}</b> ürün azalan (${esc(fmtQty(lowThreshold()))} koli ve altı) · ${mv.all.length} hareket, ${S.lists.length} liste. Kalan = sayım − sonra yazılan siparişler; sipariş yazmayı engellemez.`
+    : `Henüz stok sayımı girilmedi. Bir ürünü arayıp <b>Sayım gir</b>'e dokunun ya da Excel yüklerken <b>Stok sayımı</b> sütununu seçin. Kim ne almış bilgisi listelerden okunur: ${mv.all.length} hareket, ${S.lists.length} liste.`;
+  $$('#stock-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === stockTab));
+  $('#stock-tab-ask').hidden = stockTab !== 'ask'; $('#stock-tab-low').hidden = stockTab !== 'low'; $('#stock-tab-moves').hidden = stockTab !== 'moves';
+  const th = $('#stock-threshold'); if (document.activeElement !== th) th.value = String(lowThreshold());
+  renderStockDetail(); renderStockLow(low); renderStockMoves();
+}
+function renderStockDetail() {
+  const box = $('#stock-detail');
+  if (!stockSel) { box.innerHTML = '<p class="small muted">Bir ürün yazın: kalan stok ve en son kimlerin aldığı burada görünür.</p>'; return; }
+  const u = stockProduct(stockSel);
+  if (!u) { stockSel = null; box.innerHTML = ''; return; }
+  const st = stockStatus(stockSel); const e = st.entry; const rem = st.remaining;
+  const head = e
+    ? `<div class="stock-big${qtyCls(rem)}">${esc(fmtQty(rem))} koli kaldı</div><div class="small muted">Sayım ${esc(fmtQty(e.qty))} koli (${esc(fmtDateTime(e.at))}) − sonra yazılan sipariş ${esc(fmtQty(st.used))} koli${rem < 0 ? ' · <b>eksiye düştü</b>, sayımı yenileyin' : ''}</div>`
+    : '<div class="small muted" style="margin-top:4px">Stok sayımı girilmemiş. <b>Sayım gir</b> ile başlayın.</div>';
+  const shown = st.moves.slice(0, stockDetailMax);
+  const rows = shown.length ? shown.map(m => `<div class="moverow"><span class="d">${esc(fmtDate(m.date))}</span><span class="grow">${esc(m.customer)}</span><span class="q">${esc(fmtQty(m.qty))} koli</span></div>`).join('') : '<p class="small muted">Bu ürün henüz hiçbir listeye yazılmamış.</p>';
+  box.innerHTML = `<div class="infocard"><div class="infocard-code">${esc(u.code)}</div><div class="infocard-name">${esc(u.name || '—')}${u.p ? '' : ' <span class="tag warn">Excel dışı</span>'}</div>${head}
+    <div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-act="count">Sayım gir</button>${e ? '<button type="button" class="btn sm" data-act="add">Stok ekle</button><button type="button" class="btn sm" data-act="untrack">Takibi bırak</button>' : ''}</div>
+    <div class="field" style="margin-top:8px"><span>Son alanlar (en yeniden eskiye)${st.moves.length ? ' · ' + st.moves.length + ' hareket, toplam ' + esc(fmtQty(st.total)) + ' koli' : ''}</span></div>${rows}
+    ${st.moves.length > shown.length ? `<button type="button" class="linkbtn" data-act="more">${st.moves.length - shown.length} hareket daha</button>` : ''}</div>`;
+}
+function renderStockLow(rows) {
+  const box = $('#stock-low');
+  if (!rows.length) { box.innerHTML = `<p class="small muted">${Object.keys(S.stock).length ? 'Eşiğin altında ürün yok.' : 'Sayım girilen ürün yok.'}</p>`; return; }
+  const shown = rows.slice(0, stockLowMax);
+  box.innerHTML = shown.map(r => `<button type="button" class="stockrow" data-fc="${esc(r.fc)}"><div class="grow"><div><span class="code">${esc(r.code)}</span> ${esc(r.name)}</div><div class="sub">${r.last ? `Son: ${esc(r.last.customer)} · ${esc(fmtDate(r.last.date))} · ${esc(fmtQty(r.last.qty))} koli` : 'Henüz sipariş yazılmadı'}</div></div><div class="qty${qtyCls(r.remaining)}">${esc(fmtQty(r.remaining))} koli</div></button>`).join('')
+    + (rows.length > shown.length ? `<button type="button" class="linkbtn" data-act="more-low">${rows.length - shown.length} ürün daha</button>` : '');
+}
+function renderStockMoves() {
+  const box = $('#stock-moves'); const q = fold($('#stock-moves-search').value);
+  let all = movements().all;
+  if (q) { const toks = q.split(' ').filter(Boolean); all = all.filter(m => { const hay = fold(m.customer) + ' ' + m.fc + ' ' + fold(m.name); return toks.every(t => hay.includes(t)); }); }
+  if (!all.length) { box.innerHTML = `<p class="small muted">${q ? 'Eşleşen hareket yok.' : 'Henüz listelere yazılmış ürün yok.'}</p>`; return; }
+  const shown = all.slice(0, stockMovesMax);
+  box.innerHTML = shown.map(m => `<button type="button" class="stockrow" data-fc="${esc(m.fc)}"><div class="grow"><div><b>${esc(m.customer)}</b> <span class="muted small">${esc(fmtDate(m.date))}</span></div><div class="sub"><span class="code" style="font-size:13px">${esc(m.code || '—')}</span> ${esc(m.name)}</div></div><div class="qty">${esc(fmtQty(m.qty))} koli</div></button>`).join('')
+    + (all.length > shown.length ? `<button type="button" class="linkbtn" data-act="more-moves">${all.length - shown.length} hareket daha</button>` : '');
+}
+$('#stock-tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; stockTab = b.dataset.tab; renderStock(); });
+const stInput = $('#stock-search'), stBox = $('#stock-suggest');
+function hideStockSuggest() { stBox.hidden = true; }
+function renderStockSuggest() {
+  const q = stInput.value.trim(); if (!q) { hideStockSuggest(); return; }
+  const res = searchStock(q, 25);
+  stBox.innerHTML = res.length ? res.map(u => { const st = S.stock[u.fc] ? stockStatus(u.fc) : null; return `<button type="button" class="sug" data-fc="${esc(u.fc)}"><div class="code">${esc(u.code)}</div><div>${esc(u.name)}</div><div class="sub">${st ? 'kalan ' + esc(fmtQty(st.remaining)) + ' koli' : 'sayım yok'}${u.p ? '' : ' · Excel dışı'}</div></button>`; }).join('') : '<div class="sug info">Sonuç yok.</div>';
+  stBox.hidden = false;
+}
+stInput.addEventListener('input', renderStockSuggest);
+stInput.addEventListener('focus', renderStockSuggest);
+stInput.addEventListener('blur', () => setTimeout(hideStockSuggest, 200));
+stBox.addEventListener('mousedown', e => e.preventDefault());
+stBox.addEventListener('click', e => { const b = e.target.closest('.sug[data-fc]'); if (!b) return; stInput.value = ''; hideStockSuggest(); stInput.blur(); stockSelect(b.dataset.fc, { scroll: false }); });
+stInput.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = stInput.value.trim(); if (!q) return;
+  const res = searchStock(q, 2); const hit = res.find(u => u.fc === fold(q)) || (res.length === 1 ? res[0] : null);
+  if (hit) { stInput.value = ''; hideStockSuggest(); stInput.blur(); stockSelect(hit.fc, { scroll: false }); }
+});
+$('#stock-detail').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b || !stockSel) return;
+  const u = stockProduct(stockSel); if (!u) return;
+  const act = b.dataset.act;
+  if (act === 'count') stockCountDialog(u); else if (act === 'add') stockAddDialog(u); else if (act === 'untrack') stockUntrack(u);
+  else if (act === 'more') { stockDetailMax += 50; renderStockDetail(); }
+});
+$('#stock-low').addEventListener('click', e => {
+  if (e.target.closest('[data-act="more-low"]')) { stockLowMax += 50; renderStockLow(lowStockRows()); return; }
+  const r = e.target.closest('.stockrow[data-fc]'); if (r && r.dataset.fc) stockSelect(r.dataset.fc);
+});
+$('#stock-moves').addEventListener('click', e => {
+  if (e.target.closest('[data-act="more-moves"]')) { stockMovesMax += 50; renderStockMoves(); return; }
+  const r = e.target.closest('.stockrow[data-fc]'); if (r && r.dataset.fc) stockSelect(r.dataset.fc);
+});
+$('#stock-moves-search').addEventListener('input', () => { stockMovesMax = 30; renderStockMoves(); });
+$('#stock-threshold').addEventListener('change', e => { const v = parseNum(e.target.value); S.settings.lowStock = v != null && v >= 0 ? v : 10; persist('settings').catch(showErr); renderStock(); });
+$('#stock-xlsx').addEventListener('click', async () => {
+  if (!S.lists.length && !Object.keys(S.stock).length) { toast('Henüz liste ya da stok sayımı yok; Excel boş olurdu.', 3000); return; }
+  const btn = $('#stock-xlsx'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Hazırlanıyor…';
+  try { flushSaves(); const f = await exportStockXlsx(); fileSheet(f, 'Stok Excel', '<p class="small muted">Sayfalar: Azalan stok, Stok durumu, Kim ne almış (tüm hareketler, en yeni üstte), Ürün bazında alanlar, Müşteri bazında, Özet. Mevcut listelerden hesaplanır.</p>'); }
+  catch (e) { showErr(e); } finally { btn.disabled = false; btn.textContent = old; }
+});
+async function exportStockXlsx() {
+  await loadScript(LIBS.xlsx);
+  const th = lowThreshold(); const mv = movements();
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, headers, rows, widths) => {
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = headers.map((h, i) => ({ wch: widths[i] || Math.max(10, h.length + 2) }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(1, rows.length), c: headers.length - 1 } }) };
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  const H_ST = ['Stok Kodu', 'Ürün Açıklaması', 'Kalan (Koli)', 'Sayım (Koli)', 'Sayım Tarihi', 'Sayımdan Sonra Sipariş (Koli)', 'Toplam Sipariş (Koli)', 'Son Sipariş Tarihi', 'Son Alan Müşteri', 'Son Sipariş (Koli)'];
+  const W_ST = [14, 42, 12, 12, 17, 16, 14, 14, 28, 12];
+  const stRow = r => [r.code, r.name, r.remaining, r.entry.qty, fmtDateTime(r.entry.at), r.used, r.total, r.last ? fmtDate(r.last.date) : '', r.last ? r.last.customer : '', r.last ? r.last.qty : null];
+  addSheet('Azalan stok', H_ST, lowStockRows(th).map(stRow), W_ST);
+  addSheet('Stok durumu', H_ST, trackedRows().sort((a, b) => a.remaining - b.remaining || a.code.localeCompare(b.code, 'tr')).map(stRow), W_ST);
+  const mvRow = m => [fmtDate(m.date), m.customer, m.code, m.name, m.qty, m.listNo, m.custom ? 'Evet' : ''];
+  addSheet('Kim ne almış', ['Tarih', 'Müşteri', 'Stok Kodu', 'Ürün Açıklaması', 'Koli', 'Liste No', 'Excel Dışı'], mv.all.map(mvRow), [12, 28, 14, 42, 8, 10, 10]);
+  const prodRows = []; // ürün bazında: kod sırasıyla, her ürünün içinde en son alan en üstte
+  for (const [fc, arr] of [...mv.byCode.entries()].sort((a, b) => a[0].localeCompare(b[0], 'tr'))) {
+    const u = stockProduct(fc); const st = stockStatus(fc);
+    arr.forEach((m, i) => prodRows.push([u ? u.code : m.code, u ? u.name : m.name, i + 1, fmtDate(m.date), m.customer, m.qty, st.entry ? st.remaining : null]));
+  }
+  addSheet('Ürün bazında alanlar', ['Stok Kodu', 'Ürün Açıklaması', 'Sıra (1 = en son)', 'Tarih', 'Müşteri', 'Koli', 'Kalan (Koli)'], prodRows, [14, 42, 10, 12, 28, 8, 12]);
+  const custRows = [...mv.all].sort((a, b) => fold(a.customer).localeCompare(fold(b.customer), 'tr') || movCmp(a, b)).map(m => [m.customer, fmtDate(m.date), m.code, m.name, m.qty]);
+  addSheet('Müşteri bazında', ['Müşteri', 'Tarih', 'Stok Kodu', 'Ürün Açıklaması', 'Koli'], custRows, [28, 12, 14, 42, 8]);
+  const ozet = XLSX.utils.aoa_to_sheet([
+    [S.settings.company || 'Stok takibi'], ['Oluşturma', fmtDateTime(Date.now())], ['Liste sayısı', S.lists.length], ['Hareket sayısı', mv.all.length],
+    ['Takipteki ürün', Object.keys(S.stock).length], ['Azalan ürün (' + fmtQty(th) + ' koli ve altı)', lowStockRows(th).length],
+    ['Kalan hesabı', 'Sayım (koli) − sayım tarihinden sonra yazılan listelerdeki koliler. Stok takibi sipariş yazmayı engellemez.'],
+    ['Sıralama', 'Azalan stok sayfasında son sipariş yazılan ürünler üstte, sonra kalanı en az olanlar.']
+  ]);
+  ozet['!cols'] = [{ wch: 34 }, { wch: 70 }];
+  XLSX.utils.book_append_sheet(wb, ozet, 'Özet');
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new File([out], `Stok_takip_${todayISO()}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
 
 /* ---------- ayarlar ---------- */
 function renderSettings() {
@@ -1513,6 +1848,7 @@ function renderSettings() {
   $('#info-version').textContent = APP_VERSION;
   $('#info-products').textContent = S.products.length + ' ürün' + (S.productMeta ? ' (' + S.productMeta.fileName + ')' : '');
   $('#info-lists').textContent = S.lists.length + ' liste';
+  $('#info-stock').textContent = Object.keys(S.stock).length + ' ürün sayımlı';
   const st = $('#info-storage'); st.textContent = 'kontrol ediliyor…';
   (async () => {
     try {
@@ -1546,7 +1882,7 @@ $('#set-pin').addEventListener('click', () => {
           const key = await Crypto.deriveKey(n, salt);
           const newMeta = { ...META, salt, verifier: await Crypto.encrypt(key, { ok: true }) };
           KEY = key; META = newMeta;
-          await Promise.all([persist('products'), persist('lists'), persist('settings')]);
+          await Promise.all([persist('products'), persist('lists'), persist('settings'), persist('stock')]);
           await DB.set('meta', META);
           close(); toast('PIN değiştirildi');
         } catch (e) { fail('Hata: ' + e.message); }
@@ -1559,7 +1895,7 @@ $('#set-wipe').addEventListener('click', wipeAll);
 $('#set-backup').addEventListener('click', async () => {
   try {
     flushSaves();
-    const payload = { products: plainProducts(), productMeta: S.productMeta, lists: S.lists, settings: S.settings };
+    const payload = { products: plainProducts(), productMeta: S.productMeta, lists: S.lists, stock: S.stock, settings: S.settings };
     const rec = await Crypto.encrypt(KEY, payload);
     const out = { app: 'siparis-listesi', v: 1, createdAt: new Date().toISOString(), salt: b64(META.salt), iv: b64(rec.iv), data: b64(rec.ct) };
     const f = new File([JSON.stringify(out)], `siparis_yedek_${todayISO()}.json`, { type: 'application/json' });
@@ -1578,9 +1914,9 @@ $('#set-restore-file').addEventListener('change', async e => {
     catch (_) { toast('PIN yanlış ya da dosya bozuk', 3000); return; }
     const ok = await confirmDlg('Yedek geri yüklensin mi?', `Yedek: ${esc(new Date(j.createdAt).toLocaleString('tr-TR'))} · ${(payload.products || []).length} ürün · ${(payload.lists || []).length} liste.<br>Bu telefondaki mevcut ürünler ve listeler yedektekilerle <b>değiştirilir</b>.`, { ok: 'Geri yükle', danger: true });
     if (!ok) return;
-    S.products = payload.products || []; S.productMeta = payload.productMeta || null; S.lists = payload.lists || []; S.settings = { ...DEF_SETTINGS, ...(payload.settings || {}) };
+    S.products = payload.products || []; S.productMeta = payload.productMeta || null; S.lists = payload.lists || []; S.stock = payload.stock && typeof payload.stock === 'object' ? payload.stock : {}; S.settings = { ...DEF_SETTINGS, ...(payload.settings || {}) };
     buildIndex();
-    await Promise.all([persist('products'), persist('lists'), persist('settings')]);
+    await Promise.all([persist('products'), persist('lists'), persist('settings'), persist('stock')]);
     toast('Yedek geri yüklendi'); renderSettings();
   } catch (err) { showErr(err); }
 });
@@ -2752,7 +3088,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, exportMikro, mikroLines, encodeCp1254, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, exportMikro, mikroLines, encodeCp1254, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker, stock: { status: stockStatus, movements, low: lowStockRows, tracked: trackedRows, search: searchStock, select: stockSelect, render: renderStock, xlsx: exportStockXlsx, countDialog: stockCountDialog, addDialog: stockAddDialog, atFromDate: stockAtFromDate } } };
 })();
 </script>
 </body>

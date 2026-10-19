@@ -43,7 +43,7 @@ Her telefon kendi PIN'ini belirler ve kendi verisini tutar. Ekip arkadaşların�
 3. Sütun eşleştirme ekranı açılır. Uygulama sütunları adlarından tahmin eder; kontrol edip **İçe aktar** deyin.
 4. "Excel'deki fiyat" seçeneğini ayarlayın: fiyatlar adet fiyatıysa **Adet fiyatı** (tutar = koli × koli içi adet × fiyat), koli fiyatıysa **Koli fiyatı**.
 
-Excel düzeni: ilk satır başlık olmalı. Beklenen sütunlar: **Stok Kodu**, **Ürün Açıklaması**, **Barkod**, **Koli İçi Adet**, **Fiyat**. Sütun adları farklı olabilir, yüklerken eşleştirirsiniz. Barkod ve Koli İçi Adet ile Fiyat isteğe bağlıdır. Barkodlar sayı ya da metin olarak kaydedilmiş olabilir, ikisi de çalışır. Yeni bir dosya yüklemek eski listenin yerine geçer; kayıtlı siparişler etkilenmez.
+Excel düzeni: ilk satır başlık olmalı. Beklenen sütunlar: **Stok Kodu**, **Ürün Açıklaması**, **Barkod**, **Koli İçi Adet**, **Fiyat** ve isteğe bağlı **Stok sayımı** (Stok Miktarı, Mevcut, Bakiye gibi bir başlık kendiliğinden tanınır; 10. bölüme bakın). Sütun adları farklı olabilir, yüklerken eşleştirirsiniz. Barkod, Koli İçi Adet, Fiyat ve Stok sayımı isteğe bağlıdır. Barkodlar sayı ya da metin olarak kaydedilmiş olabilir, ikisi de çalışır. Yeni bir dosya yüklemek eski listenin yerine geçer; kayıtlı siparişler ve stok sayımları etkilenmez.
 
 ## 4. Günlük kullanım
 
@@ -68,6 +68,8 @@ Excel düzeni: ilk satır başlık olmalı. Beklenen sütunlar: **Stok Kodu**, *
 **Mikro'ya aktarım:** Alttaki **Mikro** düğmesi, Mikro muhasebe programının okuyabildiği bir metin dosyası (.txt) hazırlar. Dosyayı **Paylaş** ile Mikro'nun kurulu olduğu bilgisayara gönderin (WhatsApp Web, e-posta) ve bir klasöre kaydedin. Mikro'da yeni bir **Alınan Sipariş Fişi** açın, müşteriyi seçin, satırlara gelip **Ctrl+N** tuşlarına basın; açılan pencerede dosyayı seçip Enter'a basın. Satırlar stok kodu ve miktarla dolar, fiyatlar Mikro'daki fiyat listesinden gelir. Dosyada her satır `Stok kodu;Miktar` biçimindedir (Mikro'nun Ctrl+N penceresinde yazan yapı; fiyat ve diğer alanlar boş bırakılır). Miktarın adet mi koli mi yazılacağı **Ayarlar → Mikro'ya aktarım** bölümünden seçilir; varsayılan adettir (koli × koli içi adet). Stok kodu olmayan satırlar aktarılmaz; dosya hazırlanınca uyarı listesinde gösterilir.
 
 **Kayıtlı listeler:** Listeler ekranındaki karta dokunarak açın. Sağ üstteki **⋮** menüsünden listeyi kopyalayabilir (tekrar eden siparişler için), satırları temizleyebilir ya da silebilirsiniz.
+
+**Stok takibi:** Ürünler sekmesinin altındaki **Stok takibi** kartı, kayıtlı listelerden kimin ne aldığını, bir ürünü en son kimlerin aldığını ve kalan stoku gösterir; **Excel oluştur** ile hepsini paylaşılabilir bir Excel dosyasına döker. Ayrıntı 10. bölümde.
 
 ## 5. Gizlilik ve güvenlik
 
@@ -96,6 +98,7 @@ Uygulamada değişiklik yapıldığında yeni dosyaları GitHub'daki depoya tekr
 - **Fiş okuma "OCR motoru yükleniyor"da takılıyor:** İlk kullanımda motor (yaklaşık 6 MB) bir kez indirilir; internet açıkken bir kez deneyin, sonra çevrimdışı çalışır. Çok eski telefonlarda yükleme bir dakikayı bulabilir.
 - **İnternetle okuma "kota" hatası veriyor:** Hata penceresinin altında Google'ın kendi mesajı görünür. "limit: 0" ya da faturalandırma geçiyorsa seçili model ücretsiz katmanda değildir (Gemini 4 Argon, 3.1 Pro) ya da projede ücretsiz kota yoktur: Ayarlar'dan Gemini 3.8 Flash seçin ya da AI Studio'da faturalandırmayı açın. Dakikalık/günlük sınır dolduysa biraz bekleyin. Ürün listesi çok büyükse uygulama ilk denemede kota hatası alınca listeyi göndermeden bir kez daha dener; kodlar o zaman telefonda eşleştirilir.
 - **Fiş okunuyor ama satırlar yanlış:** 9. bölümdeki çekim ve yazım ipuçlarına bakın; "Okunan ham metin" kutusu motorun ne gördüğünü gösterir. En isabetli sonuç için telefonun kendi metin tanımasını (iPhone "Metni Tara", Android Google Lens) ve **Metin yapıştır** yolunu kullanın.
+- **Kalan stok yanlış görünüyor:** Kalan, sayım değerinden yalnızca sayım tarihinden *sonra yazılan* listelerdeki koliler düşülerek bulunur; sayımdan önce yazılmış listeler düşülmez. Sayım eksiye düştüyse ya da mal geldiyse ürünü açıp **Sayım gir** ile yeni sayımı yazın (ya da gelen mal için **Stok ekle**). Eski tarihli bir sayım giriyorsanız sayım tarihini o güne çekin; o gün ve sonrasında yazılan listeler düşülür.
 
 ## 9. El yazısı fiş okuma
 
@@ -121,3 +124,18 @@ Alternatif servis Anthropic Claude'dur (ücretli; console.anthropic.com). Hangi 
 - Müşteri adı fişin en üstüne tek satır olarak yazılsın; notlar ayrı satırlara.
 - Uzun fişlerde birden çok fotoğraf seçebilirsiniz (Galeriden seç ile çoklu seçim); satırlar sırayla birleştirilir.
 - Ayarlar → OCR dili: varsayılan "Türkçe + İngilizce" testlerde kod ve rakamları en doğru okuyan ayardır. Fişte yalnızca kod ve rakam varsa "Yalnız İngilizce" biraz daha hızlıdır.
+
+## 10. Stok takibi
+
+**Ne yapar:** Ürünler sekmesinin altındaki **Stok takibi** kartı üç sekmeden oluşur:
+- **Ürün sor:** Stok kodu ya da ürün adı yazıp seçin. Kalan koli, sayım bilgisi ve ürünü **en son kimlerin aldığı** (en yeniden eskiye: tarih, müşteri, koli) görünür. Buradan **Sayım gir** (sayılan stoku yazarsınız), **Stok ekle** (gelen mal) ve **Takibi bırak** yapılır. Excel'de olmayan ama listelere yazılmış kodlar da aranabilir.
+- **Azalan:** Kalanı eşik (varsayılan 10 koli) ve altında olan ürünler, kaç koli kaldığıyla. Sipariş yazılmış ürünler üstte (en son yazılan en üstte), hiç sipariş yazılmamış olanlar altta. Eşiği yanındaki kutudan değiştirirsiniz; eksiye düşenler kırmızı görünür. Satıra dokununca ürün açılır.
+- **Kim ne almış:** Tüm listelerdeki kalemler en yeni üstte (müşteri, tarih, ürün, koli). Üstteki kutuyla müşteri adına, stok koduna ya da ürün adına göre süzün; satıra dokununca o ürünün sayfası açılır.
+
+**Sayım nereden gelir:** İki yol vardır. (1) Ürün Excel'inde bir stok sütunu varsa (Stok Miktarı, Mevcut, Bakiye gibi bir başlık; yüklerken **Stok sayımı** alanından seçilir) her ürünün sayımı oradan alınır, sayım tarihi yükleme anı olur. Stok adet olarak yazılmışsa **Adet** seçin, koli içi adede bölünür. Boş hücreler eski sayımı korur. (2) Ürün sor sekmesinde ürünü açıp **Sayım gir** ile elle yazın.
+
+**Kalan nasıl hesaplanır:** Kalan = sayım − sayım tarihinden sonra yazılan listelerdeki koliler. Sayımdan önce yazılmış listeler düşülmez. Mal gelince **Stok ekle** ile gelen koliyi yazın; uygulama o anki kalana ekleyip yeni bir sayım kaydeder. Sayım eski bir güne aitse sayım tarihini o güne çekin; o gün ve sonrasında yazılan listeler düşülür. Kalan eksiye düşebilir ama **sipariş yazmayı hiçbir zaman engellemez**; liste yazarken öneri satırında ve Künye'de yalnızca bilgi olarak "kalan X koli" görünür.
+
+**Excel oluştur:** Kartın sağ üstündeki düğme, o anki listelerden şu sayfaları içeren bir Excel hazırlar ve **Paylaş** (WhatsApp, e-posta) ya da **İndir** seçeneği sunar: **Azalan stok** (eşik ve altı, uygulamadaki sırayla), **Stok durumu** (sayımı olan tüm ürünler: kalan, sayım, sayım tarihi, sayımdan sonra ve toplam sipariş, son alan müşteri), **Kim ne almış** (tüm hareketler, en yeni üstte), **Ürün bazında alanlar** (her ürün için en son alandan başlayarak müşteriler), **Müşteri bazında** (her müşterinin aldıkları) ve **Özet**. Sayfalarda süzme (filtre) açık gelir. Dosya yalnızca siz düğmeye bastığınızda oluşturulur, kendiliğinden hiçbir yere gönderilmez.
+
+**Yedek:** Stok sayımları yedek dosyasına girer ve geri yüklemede gelir. Ürün listesini silmek ya da yeni Excel yüklemek sayımları silmez.

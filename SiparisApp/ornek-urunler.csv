@@ -1,7 +1,7 @@
-﻿Stok Kodu;Ürün Açıklaması;Barkod;Koli İçi Adet;Fiyat
-A-1001;Ayçiçek Yağı 5 L;8690001234567;4;189,90
-A-1002;Zeytinyağı Sızma 1 L;8690001234574;12;245,00
-B-2001;Makarna Burgu 500 g;8690002345671;20;18,50
-B-2002;Pirinç Baldo 1 kg;8690002345688;10;64,75
-C-3001;Şeker Toz 1 kg;8690003456782;10;39,90
-C-3002;Çay Siyah 1 kg;8690003456799;6;312,00
+﻿Stok Kodu;Ürün Açıklaması;Barkod;Koli İçi Adet;Fiyat;Stok Miktarı
+A-1001;Ayçiçek Yağı 5 L;8690001234567;4;189,90;24
+A-1002;Zeytinyağı Sızma 1 L;8690001234574;12;245,00;7
+B-2001;Makarna Burgu 500 g;8690002345671;20;18,50;0
+B-2002;Pirinç Baldo 1 kg;8690002345688;10;64,75;15
+C-3001;Şeker Toz 1 kg;8690003456782;10;39,90;40
+C-3002;Çay Siyah 1 kg;8690003456799;6;312,00;3
