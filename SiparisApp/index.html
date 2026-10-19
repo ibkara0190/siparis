@@ -145,6 +145,8 @@ input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none}
 .actionbar{display:flex;gap:8px;align-items:center;padding:10px 16px;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--line)}
 .actionbar .summary{flex:1;min-width:0;font-size:14px;color:var(--muted)}
 .actionbar .summary b{color:var(--fg)}
+.actionbar .btn{padding-left:10px;padding-right:10px}
+@media (max-width:400px){.actionbar{gap:6px;padding-left:10px;padding-right:10px}.actionbar .summary{font-size:13px}}
 .lcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;flex-direction:column;gap:4px;box-shadow:var(--shadow);cursor:pointer;text-align:left;font:inherit;color:var(--fg);width:100%}
 .lcard .t{display:flex;justify-content:space-between;gap:8px;font-weight:700;font-size:16px}
 .lcard .t span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -323,6 +325,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
       <div class="summary"><b id="ed-count">0</b> kalem<br><b id="ed-koli">0</b> koli</div>
       <button id="ed-pdf" class="btn">PDF</button>
       <button id="ed-xlsx" class="btn">Excel</button>
+      <button id="ed-mikro" class="btn" title="Mikro için Ctrl+N metin dosyası">Mikro</button>
       <button id="ed-save" class="btn primary">Kaydet</button>
     </footer>
   </section>
@@ -372,6 +375,17 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
             <label><input type="radio" name="set-basis" value="koli"> Koli fiyatı</label>
           </div>
           <p class="small muted">Adet fiyatı seçiliyse tutar = koli × koli içi adet × fiyat.</p>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Mikro'ya aktarım</h2>
+        <p class="small muted">Liste ekranındaki <b>Mikro</b> düğmesi, Mikro'da sipariş fişinin satırlarında <b>Ctrl+N</b> ile okunan metin dosyasını hazırlar. Her satır <b>Stok kodu;Miktar</b> biçimindedir; fiyat dosyaya yazılmaz, Mikro'daki fiyat listesinden gelir.</p>
+        <div class="field"><span>Dosyadaki miktar</span>
+          <div class="radios">
+            <label><input type="radio" name="set-mikroqty" value="adet"> Adet (koli × koli içi adet)</label>
+            <label><input type="radio" name="set-mikroqty" value="koli"> Koli</label>
+          </div>
+          <p class="small muted">Mikro'da miktarı adet olarak giriyorsanız "Adet" kalsın. Koli içi adedi bilinmeyen satırlar koli sayısıyla yazılır ve uyarı verilir.</p>
         </div>
       </div>
       <div class="card">
@@ -523,7 +537,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.2.2';
+const APP_VERSION = '1.3.0';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -621,7 +635,7 @@ const Crypto = {
 };
 
 /* ---------- durum ---------- */
-const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', mikroQty: 'adet', hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
 let KEY = null, META = null, cur = null;
 let slip = null, slipMode = 'new'; // fiş okuma: kontrol ekranındaki geçici veri ve hedef ('new' | 'current')
 let pendingShareText = ''; // Android'de başka uygulamadan "Paylaş" ile gelen metin (manifest share_target), kilit açılınca işlenir
@@ -1249,11 +1263,11 @@ $('#ed-scan').addEventListener('click', () => openScanner('order'));
 
 /* ---------- dışa aktarma ---------- */
 let prepared = null;
-function fileSheet(file, label) {
+function fileSheet(file, label, extraHtml = '') {
   prepared = file;
   const canShare = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [file] }));
   openModal({
-    title: label + ' hazır', html: `<p class="muted">${esc(file.name)}</p><p class="small muted">${canShare ? 'WhatsApp, e-posta veya başka bir uygulamayla gönderin.' : 'Dosya cihazınıza indirilecek.'}</p>`,
+    title: label + ' hazır', html: `<p class="muted">${esc(file.name)}</p><p class="small muted">${canShare ? 'WhatsApp, e-posta veya başka bir uygulamayla gönderin.' : 'Dosya cihazınıza indirilecek.'}</p>${extraHtml}`,
     buttons: [{ label: 'Kapat' }, ...(canShare ? [{ label: 'Paylaş', cls: 'primary', onClick: () => shareFile() }] : []), { label: 'İndir', cls: canShare ? '' : 'primary', onClick: c => { downloadFile(); c(); } }]
   });
 }
@@ -1315,15 +1329,70 @@ async function exportXlsx(list) {
   const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   return new File([out], docTitle(list) + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
+/* ---------- Mikro aktarımı (Ctrl+N metin dosyası) ---------- */
+// Mikro'da evrak satırlarında Ctrl+N "Dosyadan oku" penceresinin beklediği yapı (pencerenin alt satırında yazar):
+// Stok kodu/Barkodu(zorunlu);Miktar(zorunlu);Br.fiyat;İsk1;İsk2;Cari Srm.Mrk.;Gider kodu;Stok Srm.Mrk.;Açıklama;Parti kodu;Lot no;ProjeKodu;SeriNo
+// Yalnızca zorunlu iki alan yazılır; fiyat ve diğer alanlar Mikro'dan gelir.
+const CP1254_MAP = { 0x20AC: 0x80, 0x201A: 0x82, 0x0192: 0x83, 0x201E: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87, 0x02C6: 0x88, 0x2030: 0x89, 0x0160: 0x8A, 0x2039: 0x8B, 0x0152: 0x8C, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x02DC: 0x98, 0x2122: 0x99, 0x0161: 0x9A, 0x203A: 0x9B, 0x0153: 0x9C, 0x0178: 0x9F, 0x011E: 0xD0, 0x0130: 0xDD, 0x015E: 0xDE, 0x011F: 0xF0, 0x0131: 0xFD, 0x015F: 0xFE };
+const CP1254_DIFF = new Set([0xD0, 0xDD, 0xDE, 0xF0, 0xFD, 0xFE]); // Latin-1 ile aynı olmayan konumlar
+function encodeCp1254(str) { // Mikro (Windows programı) dosyayı Türkçe ANSI (Windows-1254) olarak okur; UTF-8 yazılsa Türkçe harfler bozulur
+  const out = new Uint8Array(str.length); let n = 0;
+  for (const ch of str) {
+    const c = ch.codePointAt(0);
+    out[n++] = c < 0x80 ? c : CP1254_MAP[c] != null ? CP1254_MAP[c] : (c >= 0xA0 && c <= 0xFF && !CP1254_DIFF.has(c)) ? c : 0x3F;
+  }
+  return out.subarray(0, n);
+}
+function mikroQtyStr(n) { const r = Math.round(n * 1000) / 1000; return Number.isInteger(r) ? String(r) : String(r).replace('.', ','); }
+function mikroLines(list, mode) {
+  mode = mode || S.settings.mikroQty || 'adet';
+  const lines = [], warnings = [];
+  list.items.forEach((it, i) => {
+    const code = String(it.code || '').trim().replace(/[;\r\n]/g, '');
+    const qty = Number(it.qty) || 0;
+    const tag = `${i + 1}. satır (${code || it.name || '—'})`;
+    if (!code) { warnings.push(`${tag}: stok kodu yok, aktarılmadı.`); return; }
+    if (qty <= 0) { warnings.push(`${tag}: miktar 0, aktarılmadı.`); return; }
+    let n = qty;
+    if (mode === 'adet') {
+      if (it.unit > 0) n = qty * it.unit;
+      else warnings.push(`${tag}: koli içi adet bilinmiyor, koli sayısı (${fmtQty(qty)}) yazıldı.`);
+    }
+    if (it.custom) warnings.push(`${tag}: Excel dışı kalem; kod Mikro'da yoksa satır okunmaz.`);
+    lines.push(code + ';' + mikroQtyStr(n));
+  });
+  return { lines, warnings, mode };
+}
+function exportMikro(list) {
+  const r = mikroLines(list);
+  if (!r.lines.length) throw new Error('Aktarılacak satır yok. ' + (r.warnings[0] || ''));
+  const bytes = encodeCp1254(r.lines.join('\r\n') + '\r\n');
+  const file = new File([bytes], `Mikro_${safeName(list.customer)}_${list.date || todayISO()}.txt`, { type: 'text/plain' });
+  return { file, warnings: r.warnings, count: r.lines.length, mode: r.mode };
+}
+function mikroNote(r) {
+  const w = r.warnings.length ? `<p class="small" style="margin-top:8px"><b>Uyarılar</b></p><ul class="small" style="margin:0 0 0 18px;padding:0">${r.warnings.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  return `<p class="small">${r.count} satır, miktarlar <b>${r.mode === 'adet' ? 'adet' : 'koli'}</b> olarak yazıldı. Dosyayı Mikro'nun olduğu bilgisayara gönderin; Mikro'da sipariş fişinde satırlara gelip <b>Ctrl+N</b> ile bu dosyayı seçin.</p>${w}`;
+}
+const EXPORTS = {
+  pdf: { btn: '#ed-pdf', label: 'PDF', run: l => exportPdf(l) },
+  xlsx: { btn: '#ed-xlsx', label: 'Excel', run: l => exportXlsx(l) },
+  mikro: { btn: '#ed-mikro', label: 'Mikro dosyası', run: l => exportMikro(l) }
+};
 async function runExport(kind) {
   if (!cur) return;
   if (!cur.items.length) { toast('Listede ürün yok'); return; }
-  const btn = kind === 'pdf' ? $('#ed-pdf') : $('#ed-xlsx'); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Hazırlanıyor…';
-  try { flushSaves(); const f = kind === 'pdf' ? await exportPdf(cur) : await exportXlsx(cur); fileSheet(f, kind === 'pdf' ? 'PDF' : 'Excel'); }
+  const ex = EXPORTS[kind]; const btn = $(ex.btn); btn.disabled = true; const old = btn.textContent; btn.textContent = 'Hazırlanıyor…';
+  try {
+    flushSaves();
+    const r = await ex.run(cur);
+    if (r instanceof File) fileSheet(r, ex.label); else fileSheet(r.file, ex.label, mikroNote(r));
+  }
   catch (e) { showErr(e); } finally { btn.disabled = false; btn.textContent = old; }
 }
 $('#ed-pdf').addEventListener('click', () => runExport('pdf'));
 $('#ed-xlsx').addEventListener('click', () => runExport('xlsx'));
+$('#ed-mikro').addEventListener('click', () => runExport('mikro'));
 
 /* ---------- ürünler (Excel içe aktarma) ---------- */
 let pending = null;
@@ -1439,6 +1508,7 @@ function renderSettings() {
   $('#set-company').value = S.settings.company || '';
   $('#set-autolock').value = String(S.settings.autoLock ?? 5);
   const b = $(`input[name="set-basis"][value="${S.settings.priceBasis || 'koli'}"]`); if (b) b.checked = true;
+  const mq = $(`input[name="set-mikroqty"][value="${S.settings.mikroQty || 'adet'}"]`); if (mq) mq.checked = true;
   renderAiSettings();
   $('#info-version').textContent = APP_VERSION;
   $('#info-products').textContent = S.products.length + ' ürün' + (S.productMeta ? ' (' + S.productMeta.fileName + ')' : '');
@@ -1455,6 +1525,7 @@ function renderSettings() {
 $('#set-company').addEventListener('change', e => { S.settings.company = e.target.value.trim(); persist('settings').catch(showErr); });
 $('#set-autolock').addEventListener('change', e => { S.settings.autoLock = Number(e.target.value); persist('settings').catch(showErr); });
 $$('input[name="set-basis"]').forEach(r => r.addEventListener('change', e => { if (e.target.checked) { S.settings.priceBasis = e.target.value; persist('settings').catch(showErr); } }));
+$$('input[name="set-mikroqty"]').forEach(r => r.addEventListener('change', e => { if (e.target.checked) { S.settings.mikroQty = e.target.value; persist('settings').catch(showErr); } }));
 $('#set-lock').addEventListener('click', lock);
 $('#set-pin').addEventListener('click', () => {
   openModal({
@@ -2662,7 +2733,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, exportMikro, mikroLines, encodeCp1254, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker } };
 })();
 </script>
 </body>

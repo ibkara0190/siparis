@@ -1,6 +1,6 @@
 # Sipariş Listesi – Kurulum ve Kullanım
 
-Telefonun kamerasıyla barkod okutarak ya da elle yazılmış sipariş fişinin fotoğrafını çekerek toptan müşterileriniz için sipariş listesi hazırlayan, listeyi PDF veya Excel olarak paylaşan bir web uygulaması. Mağazaya yüklenmez, bir web adresinden açılır ve ana ekrana eklenir. Tüm veriler telefonda, PIN ile şifreli durur; fiş okuma dahil her şey telefonun içinde, internet olmadan çalışır.
+Telefonun kamerasıyla barkod okutarak ya da elle yazılmış sipariş fişinin fotoğrafını çekerek toptan müşterileriniz için sipariş listesi hazırlayan, listeyi PDF veya Excel olarak paylaşan ve Mikro muhasebe programına aktarabilen bir web uygulaması. Mağazaya yüklenmez, bir web adresinden açılır ve ana ekrana eklenir. Tüm veriler telefonda, PIN ile şifreli durur; fiş okuma dahil her şey telefonun içinde, internet olmadan çalışır.
 
 ## Bu klasörde ne var
 
@@ -64,6 +64,8 @@ Excel düzeni: ilk satır başlık olmalı. Beklenen sütunlar: **Stok Kodu**, *
 **Fiyat ve iskonto:** Varsayılan görünümde yalnızca stok kodu, ürün açıklaması, koli içi adet ve sipariş (koli) bulunur. **Fiyatları göster** açıldığında birim fiyat, satır tutarı, iskonto yüzdesi ve genel toplam görünür. Bu ayar listeye kaydedilir; kayıtlı bir listeyi sonradan açıp fiyatlı hale getirebilirsiniz. Fiyatı olmayan satırlar toplama girmez.
 
 **PDF ve Excel:** Alttaki **PDF** veya **Excel** düğmesi dosyayı hazırlar. **Paylaş** ile WhatsApp, e-posta ya da başka bir uygulamaya gönderirsiniz; **İndir** ile telefona kaydedersiniz. Fiyatlar yalnızca "Fiyatları göster" açıkken çıktıya girer.
+
+**Mikro'ya aktarım:** Alttaki **Mikro** düğmesi, Mikro muhasebe programının okuyabildiği bir metin dosyası (.txt) hazırlar. Dosyayı **Paylaş** ile Mikro'nun kurulu olduğu bilgisayara gönderin (WhatsApp Web, e-posta) ve bir klasöre kaydedin. Mikro'da yeni bir **Alınan Sipariş Fişi** açın, müşteriyi seçin, satırlara gelip **Ctrl+N** tuşlarına basın; açılan pencerede dosyayı seçip Enter'a basın. Satırlar stok kodu ve miktarla dolar, fiyatlar Mikro'daki fiyat listesinden gelir. Dosyada her satır `Stok kodu;Miktar` biçimindedir (Mikro'nun Ctrl+N penceresinde yazan yapı; fiyat ve diğer alanlar boş bırakılır). Miktarın adet mi koli mi yazılacağı **Ayarlar → Mikro'ya aktarım** bölümünden seçilir; varsayılan adettir (koli × koli içi adet). Stok kodu olmayan satırlar aktarılmaz; dosya hazırlanınca uyarı listesinde gösterilir.
 
 **Kayıtlı listeler:** Listeler ekranındaki karta dokunarak açın. Sağ üstteki **⋮** menüsünden listeyi kopyalayabilir (tekrar eden siparişler için), satırları temizleyebilir ya da silebilirsiniz.
 
