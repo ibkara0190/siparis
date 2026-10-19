@@ -537,7 +537,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.3.1';
+const APP_VERSION = '1.3.2';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -2525,8 +2525,9 @@ function slipCatalogBlock() {
   const ps = [...S.products].sort((a, b) => a.code.localeCompare(b.code, 'tr'));
   const full = ps.map(p => p.code + '\t' + p.name).join('\n');
   let text;
-  if (full.length <= 120000) text = 'Ürün listesi (STOK KODU, sekme, ÜRÜN ADI). Kodlar birebir bu yazımdadır:\n' + full;
-  else { const codes = ps.map(p => p.code).join(' '); if (codes.length > 250000) return null; text = 'Ürün listesindeki stok kodları (birebir bu yazımdadır):\n' + codes; }
+  // Büyük listeler isteği şişirir (ücretsiz katmanda dakikalık belirteç sınırı): 60 bin karaktere kadar ad+kod, 120 bine kadar yalnız kod, üstü gönderilmez (eşleştirme telefonda yapılır)
+  if (full.length <= 60000) text = 'Ürün listesi (STOK KODU, sekme, ÜRÜN ADI). Kodlar birebir bu yazımdadır:\n' + full;
+  else { const codes = ps.map(p => p.code).join(' '); if (codes.length > 120000) return null; text = 'Ürün listesindeki stok kodları (birebir bu yazımdadır):\n' + codes; }
   return { type: 'text', text, cache_control: { type: 'ephemeral' } };
 }
 function slipRequestBody(images) {
@@ -2583,7 +2584,13 @@ function geminiErrorMessage(status, body) {
   if (status === 401 || status === 403) return 'Bu anahtarın yetkisi yok' + (m ? ': ' + m : '.');
   if (status === 404) return 'Seçili Gemini modeli bulunamadı. Ayarlar\'dan başka bir model seçin.';
   if (status === 413) return 'Fotoğraf çok büyük; daha az fotoğraf seçin.';
-  if (status === 429) return 'Ücretsiz kota doldu ya da çok sık istek gönderildi. Bir dakika bekleyip tekrar deneyin; günlük sınır dolduysa yarın.';
+  if (status === 429) {
+    const noQuota = /limit:\s*0|free[_ ]?tier|billing|plan/i.test(m); // kota hiç tanımlı değil: model ücretsiz katmanda yok ya da proje kotasız
+    return (noQuota
+      ? 'Google bu istek için kota tanımamış: seçili model ücretsiz katmanda değil (Gemini 4 Argon ve 3.1 Pro ücretlidir) ya da projede ücretsiz kota yok. Ayarlar\'dan Gemini 3.8 Flash seçin ya da AI Studio\'da faturalandırmayı açın.'
+      : 'Google kota sınırı döndürdü: dakikalık ya da günlük sınır dolmuş olabilir. Bir dakika bekleyip tekrar deneyin.')
+      + (m ? '\n\nGoogle\'ın mesajı: ' + m.slice(0, 400) : '');
+  }
   if (status >= 500) return 'Google Gemini servisi şu an yoğun. Biraz sonra tekrar deneyin.';
   return 'Hata ' + status + (m ? ': ' + m : '');
 }
@@ -2612,11 +2619,11 @@ async function geminiCall(body, { signal, timeoutMs = 150000, retries = 2, model
       await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 30) * 1000 : 3000 * (attempt + 1));
       continue;
     }
-    throw new Error(geminiErrorMessage(res.status, json));
+    const err = new Error(geminiErrorMessage(res.status, json)); err.status = res.status; throw err;
   }
 }
-function geminiRequestBody(images) {
-  const cat = slipCatalogBlock();
+function geminiRequestBody(images, { catalog = true } = {}) {
+  const cat = catalog ? slipCatalogBlock() : null;
   const sys = slipSystemPrompt() + (cat ? '\n\n' + cat.text : '');
   const parts = [];
   images.forEach((im, i) => { if (images.length > 1) parts.push({ text: `Fotoğraf ${i + 1}:` }); parts.push({ inlineData: { mimeType: 'image/jpeg', data: im.b64 } }); });
@@ -2654,14 +2661,26 @@ async function runSlipCloud(files) {
     const el = $('#slip-busy-msg'); if (el) el.textContent = images.length > 1 ? `${images.length} fotoğraf okunuyor…` : 'Fiş okunuyor…';
     let data, model;
     if (provider === 'anthropic') { const resp = await aiCall(slipRequestBody(images), { signal: ctrl.signal }); data = slipParseResponse(resp); model = resp.model || aiModel(); }
-    else { const resp = await geminiCall(geminiRequestBody(images), { signal: ctrl.signal }); data = geminiParseResponse(resp); model = resp.modelVersion || geminiModel(); }
+    else {
+      let resp;
+      try { resp = await geminiCall(geminiRequestBody(images), { signal: ctrl.signal }); }
+      catch (e) {
+        // kota hatası ve istekte ürün listesi varsa: listeyi çıkarıp (çok daha küçük istek) bir kez daha dene; kodlar telefonda eşleştirilir
+        if (e && e.status === 429 && slipCatalogBlock() && !ctrl.signal.aborted) {
+          if (el) el.textContent = 'Kota sınırı: ürün listesi gönderilmeden yeniden deneniyor…';
+          await sleep(5000);
+          resp = await geminiCall(geminiRequestBody(images, { catalog: false }), { signal: ctrl.signal, retries: 0 });
+        } else throw e;
+      }
+      data = geminiParseResponse(resp); model = resp.modelVersion || geminiModel();
+    }
     done = true; closeModal();
     openSlipReview(data, slipMode, images, { engine: 'cloud', model });
     if (!data.lines.length) toast('Fişte satır bulunamadı. Fotoğrafı kontrol edin.', 3500);
   } catch (e) {
     done = true; closeModal();
     if (e && e.name === 'AbortError') { toast('İptal edildi'); return; }
-    openModal({ title: 'Fiş okunamadı', html: `<p>${esc(e && e.message || e)}</p><p class="small muted">"Telefonda" okuma ve "Metin yapıştır" yolları internetsiz de çalışır.</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
+    openModal({ title: 'Fiş okunamadı', html: `<p style="white-space:pre-line">${esc(e && e.message || e)}</p><p class="small muted">"Telefonda" okuma ve "Metin yapıştır" yolları internetsiz de çalışır.</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
   }
 }
 

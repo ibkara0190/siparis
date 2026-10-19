@@ -1,5 +1,5 @@
 /* Sipariş Listesi - çevrimdışı önbellek. Sürümü değiştirince eski önbellek silinir. */
-const VERSION = 'v1.3.1';
+const VERSION = 'v1.3.2';
 const CACHE = 'siparis-' + VERSION;
 const ASSETS = [
   './', './index.html', './manifest.webmanifest',

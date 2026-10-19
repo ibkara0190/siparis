@@ -94,6 +94,7 @@ Uygulamada değişiklik yapıldığında yeni dosyaları GitHub'daki depoya tekr
 - **iPhone'da veriler kayboldu:** Safari, uzun süre (7 gün ve üzeri) açılmayan sitelerin verisini silebilir. Ana ekrana eklenmiş uygulamada bu olmaz; yine de düzenli yedek alın.
 - **Excel'den ürün okunmadı:** Sütun eşleştirmede stok kodu ve açıklama sütunlarının doğru seçildiğini, ilk satırın başlık olduğunu kontrol edin.
 - **Fiş okuma "OCR motoru yükleniyor"da takılıyor:** İlk kullanımda motor (yaklaşık 6 MB) bir kez indirilir; internet açıkken bir kez deneyin, sonra çevrimdışı çalışır. Çok eski telefonlarda yükleme bir dakikayı bulabilir.
+- **İnternetle okuma "kota" hatası veriyor:** Hata penceresinin altında Google'ın kendi mesajı görünür. "limit: 0" ya da faturalandırma geçiyorsa seçili model ücretsiz katmanda değildir (Gemini 4 Argon, 3.1 Pro) ya da projede ücretsiz kota yoktur: Ayarlar'dan Gemini 3.8 Flash seçin ya da AI Studio'da faturalandırmayı açın. Dakikalık/günlük sınır dolduysa biraz bekleyin. Ürün listesi çok büyükse uygulama ilk denemede kota hatası alınca listeyi göndermeden bir kez daha dener; kodlar o zaman telefonda eşleştirilir.
 - **Fiş okunuyor ama satırlar yanlış:** 9. bölümdeki çekim ve yazım ipuçlarına bakın; "Okunan ham metin" kutusu motorun ne gördüğünü gösterir. En isabetli sonuç için telefonun kendi metin tanımasını (iPhone "Metni Tara", Android Google Lens) ve **Metin yapıştır** yolunu kullanın.
 
 ## 9. El yazısı fiş okuma
