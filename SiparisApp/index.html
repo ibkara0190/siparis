@@ -467,13 +467,21 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
         <details id="set-cloud">
           <summary>İnternetle okuma: çok daha isabetli (isteğe bağlı, kapalı)</summary>
           <div class="modal-body" style="margin-top:10px">
-            <p class="small muted">İnternet varken fiş fotoğrafı bir yapay zekâ servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları telefondaki OCR'dan çok daha iyi okur. <b>Google Gemini</b> için ücretsiz bir anahtar yeterlidir: <b>aistudio.google.com</b> → "Get API key" (Google hesabı yeter, kart istenmez; ücretsiz katmanda Google gönderilen içeriği ürünlerini geliştirmek için kullanabilir). AI Studio'da faturalandırmayı açarsanız listedeki ücretli Gemini modellerini (Gemini 4 Argon, 3.1 Pro) de seçebilirsiniz; Anthropic Claude ücretli bir diğer alternatiftir. Açıkken fiş menüsünde "İnternetle / Telefonda" seçimi çıkar; fotoğraf ve ürün kodu listesi yalnızca "İnternetle" seçiliyken gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
+            <p class="small muted">İnternet varken fiş fotoğrafı bir yapay zekâ servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları telefondaki OCR'dan çok daha iyi okur. <b>Google Gemini</b> için ücretsiz bir anahtar yeterlidir: <b>aistudio.google.com</b> → "Get API key" (Google hesabı yeter, kart istenmez; ücretsiz katmanda Google gönderilen içeriği ürünlerini geliştirmek için kullanabilir). AI Studio'da faturalandırmayı açarsanız listedeki ücretli Gemini modellerini (Gemini 4 Argon, 3.1 Pro) de seçebilirsiniz; Anthropic Claude ücretli bir diğer alternatiftir. Google seçili model için "yoğun" ya da "kota" derse uygulama önce bekleyip yeniden dener, sonra sırayla diğer ücretsiz Gemini modellerini (3.6 Flash, 3.5 Flash-Lite, 2.5 Flash) dener; "Yedek servis" açıksa en son diğer servise geçer. Açıkken fiş menüsünde "İnternetle / Telefonda" seçimi çıkar; fotoğraf ve ürün kodu listesi yalnızca "İnternetle" seçiliyken gönderilir. Kapalıyken uygulama hiçbir sunucuya bağlanmaz. Anahtar bu telefonda PIN ile şifreli saklanır.</p>
             <label class="switch"><input type="checkbox" id="set-aicloud"><span>İnternetle okumayı aç</span></label>
             <label class="field"><span>Servis</span><select id="set-aiprovider"><option value="gemini">Google Gemini (ücretsiz katman; ücretli modeller de var)</option><option value="anthropic">Anthropic Claude (ücretli)</option></select></label>
             <div class="field"><span id="set-aikey-label">API anahtarı</span>
               <div class="row2"><input id="set-aikey" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="AIza…"><button type="button" class="btn" id="set-aikey-toggle" style="flex:0 0 auto">Göster</button></div>
             </div>
             <label class="field"><span>Model</span><select id="set-aimodel"></select></label>
+            <label class="switch"><input type="checkbox" id="set-aibackup"><span>Yedek servis: seçili servis yanıt vermezse diğerine geç</span></label>
+            <div id="set-aibackup-box" hidden>
+              <p class="small muted" id="set-backup-note" style="margin:0 0 10px"></p>
+              <div class="field"><span id="set-aikey2-label">Yedek API anahtarı</span>
+                <div class="row2"><input id="set-aikey2" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-ant-…"><button type="button" class="btn" id="set-aikey2-toggle" style="flex:0 0 auto">Göster</button></div>
+              </div>
+              <label class="field"><span>Yedek model</span><select id="set-aimodel2"></select></label>
+            </div>
             <label class="field"><span>Fiş düzeni açıklaması (isteğe bağlı)</span><textarea id="set-aihint" rows="2" placeholder="Örn. Müşteri adı sağ üstte yazar; kodlar M- ile başlar; koli adedi daire içine alınır."></textarea></label>
             <div class="row"><button type="button" class="btn" id="set-aitest">Bağlantıyı test et</button></div>
             <p id="set-aistatus" class="small muted"></p>
@@ -594,7 +602,7 @@ details>summary{cursor:pointer;font-weight:600;color:var(--accent);min-height:32
 <script>
 (() => {
 'use strict';
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const LIBS = { xlsx: 'libs/xlsx.full.min.js', qr: 'libs/html5-qrcode.min.js', pdf: 'libs/pdfmake.min.js', fonts: 'libs/vfs_fonts.js', ocr: 'libs/tesseract/tesseract.min.js' };
 
 /* ---------- yardımcılar ---------- */
@@ -692,7 +700,7 @@ const Crypto = {
 };
 
 /* ---------- durum ---------- */
-const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', mikroQty: 'adet', lowStock: 10, hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', slipRoute: 'cloud' };
+const DEF_SETTINGS = { company: '', autoLock: 5, priceBasis: 'koli', mikroQty: 'adet', lowStock: 10, hintDismissed: false, ocrLang: 'tur+eng', aiCloud: false, aiProvider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.8-flash', aiKey: '', aiModel: 'claude-opus-5-5', aiHint: '', aiBackup: false, slipRoute: 'cloud' };
 let KEY = null, META = null, cur = null;
 let slip = null, slipMode = 'new'; // fiş okuma: kontrol ekranındaki geçici veri ve hedef ('new' | 'current')
 let pendingShareText = ''; // Android'de başka uygulamadan "Paylaş" ile gelen metin (manifest share_target), kilit açılınca işlenir
@@ -2004,6 +2012,17 @@ const AI_MODELS = [
 ];
 const AI_DEFAULT_MODEL = 'claude-opus-5-5';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// İptal edilebilir bekleme; her saniye kalan süreyi bildirir ("x sn sonra yeniden denenecek" geri sayımı için)
+async function sleepTicking(ms, signal, tick) {
+  const end = Date.now() + ms;
+  for (;;) {
+    if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
+    const left = end - Date.now();
+    if (left <= 0) return;
+    if (tick) tick(Math.ceil(left / 1000));
+    await sleep(Math.min(1000, left));
+  }
+}
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 function skel(s) { return fold(s).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
@@ -2348,8 +2367,9 @@ function startSlipCapture(mode) {
   const cloud = cloudReady(), online = navigator.onLine !== false;
   slipRoute = cloud && online && S.settings.slipRoute !== 'local' ? 'cloud' : 'local';
   if (slipRoute === 'local') warmOcr();
+  const bk = backupProvider();
   const routeNote = () => slipRoute === 'cloud'
-    ? `Fotoğraf ${cloudLabel()} servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları çok daha iyi okur. Ürün kodu listesi de eşleştirme için gönderilir.`
+    ? `Fotoğraf ${cloudLabel()} servisine gönderilir; el yazısını, daire içindeki adetleri ve matbu formları çok daha iyi okur. Ürün kodu listesi de eşleştirme için gönderilir.${bk ? ' Servis yoğunsa yedek ' + cloudLabel(bk) + ' denenir.' : ''}`
     : 'Okuma telefonda yapılır, internet gerekmez. Fişin tamamı kadraja girsin; yazı net, düz ve iyi aydınlatılmış olsun.';
   const routeHtml = cloud ? `<div class="field"><span>Okuma yolu</span><div class="row2"><button type="button" class="btn${slipRoute === 'cloud' ? ' primary' : ''}" data-route="cloud"${online ? '' : ' disabled'}>☁️ İnternetle${online ? '' : ' (çevrimdışı)'}</button><button type="button" class="btn${slipRoute === 'local' ? ' primary' : ''}" data-route="local">📱 Telefonda</button></div></div>` : '';
   openModal({
@@ -2860,7 +2880,7 @@ function aiErrorMessage(status, body) {
   if (status === 400) return 'İstek reddedildi' + (m ? ': ' + m : '.');
   return 'Hata ' + status + (m ? ': ' + m : '');
 }
-async function aiCall(body, { signal, timeoutMs = 150000, retries = 2 } = {}) {
+async function aiCall(body, { signal, timeoutMs = 150000, retries = 2, onRetry } = {}) {
   const key = (S.settings.aiKey || '').trim();
   if (!key) throw new Error('API anahtarı girilmemiş (Ayarlar → El yazısı fiş okuma → Gelişmiş).');
   body = { ...body };
@@ -2878,9 +2898,9 @@ async function aiCall(body, { signal, timeoutMs = 150000, retries = 2 } = {}) {
     finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
     if (netErr) {
       if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
-      if (ctrl.signal.aborted) throw new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.');
-      if (attempt < retries) { await sleep(1500 * (attempt + 1)); continue; }
-      throw new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.');
+      if (ctrl.signal.aborted) { const err = new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.'); err.code = 'timeout'; throw err; }
+      if (attempt < retries) { await sleepTicking(1500 * (attempt + 1), signal); continue; }
+      const err = new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.'); err.code = 'network'; throw err;
     }
     let json = null; try { json = JSON.parse(text); } catch (_) { }
     if (res.ok) { if (!json) throw new Error('Sunucudan geçersiz yanıt geldi'); return json; }
@@ -2890,10 +2910,11 @@ async function aiCall(body, { signal, timeoutMs = 150000, retries = 2 } = {}) {
     const retryable = hint === 'true' || (hint !== 'false' && (res.status === 408 || res.status === 409 || res.status === 429 || res.status >= 500));
     if (retryable && attempt < retries) {
       const ra = parseFloat(res.headers.get('retry-after'));
-      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 20) * 1000 : 2000 * (attempt + 1));
+      const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra, 20) * 1000 : 2000 * (attempt + 1);
+      await sleepTicking(wait, signal, left => { if (onRetry) onRetry({ status: res.status, attempt: attempt + 2, total: retries + 1, left }); });
       continue;
     }
-    throw new Error(aiErrorMessage(res.status, json));
+    const err = new Error(aiErrorMessage(res.status, json)); err.status = res.status; throw err;
   }
 }
 function slipSystemPrompt() {
@@ -2965,6 +2986,15 @@ const GEMINI_MODELS = [ // ücretsiz katmanda çalışanlar ve faturalandırma a
   ['gemini-2.5-flash', 'Gemini 2.5 Flash · önceki nesil']
 ];
 const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash';
+// Google "yoğun" (503) ya da kota (429) döndürünce sırayla denenen ücretsiz katman modelleri. Her modelin kapasitesi ve günlük kotası ayrıdır; en yeni Flash en çok yoğunluk yaşayan modeldir
+const GEMINI_FALLBACK = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'];
+function geminiModelLabel(id) { const m = GEMINI_MODELS.find(x => x[0] === id); return m ? m[1].split(/ · | \(/)[0] : id; }
+function geminiModelChain(primary = geminiModel()) { return [primary, ...GEMINI_FALLBACK.filter(m => m !== primary)]; }
+function geminiWhy(e) { const s = e && e.status; return s === 429 ? 'kota sınırı' : s === 404 ? 'model bulunamadı' : (s === 408 || (e && e.code === 'timeout')) ? 'zaman aşımı' : 'servis yoğun' + (s ? ' (' + s + ')' : ''); }
+// Başka bir model ya da servisle denemenin anlamlı olduğu hatalar: yoğunluk, kota, bulunamayan model, zaman aşımı. Anahtar/istek hataları (400, 401, 403, 413) ve iptal değil
+function cloudBusy(e) { if (!e || e.name === 'AbortError') return false; const s = e.status; return s === 408 || s === 429 || s === 404 || s >= 500 || e.code === 'timeout'; }
+function otherProvider(p = cloudProvider()) { return p === 'anthropic' ? 'gemini' : 'anthropic'; }
+function backupProvider() { const o = otherProvider(); return S.settings.aiBackup && cloudKey(o) ? o : null; } // yedek servis: ayarı açık ve anahtarı girilmişse
 const GEMINI_URL = m => 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent';
 function geminiModel() { return GEMINI_MODELS.some(m => m[0] === S.settings.geminiModel) ? S.settings.geminiModel : GEMINI_DEFAULT_MODEL; }
 function toGeminiSchema(s) { // JSON Schema → Gemini responseSchema (OpenAPI alt kümesi: anyOf/null yerine nullable, additionalProperties yok)
@@ -2996,7 +3026,7 @@ function geminiErrorMessage(status, body) {
   if (status >= 500) return 'Google Gemini servisi şu an yoğun. Biraz sonra tekrar deneyin.';
   return 'Hata ' + status + (m ? ': ' + m : '');
 }
-async function geminiCall(body, { signal, timeoutMs = 150000, retries = 2, model = geminiModel(), key = cloudKey('gemini') } = {}) {
+async function geminiCall(body, { signal, timeoutMs = 150000, retries = 2, model = geminiModel(), key = cloudKey('gemini'), onRetry } = {}) {
   if (!key) throw new Error('Gemini API anahtarı girilmemiş (Ayarlar → El yazısı fiş okuma → İnternetle okuma).');
   for (let attempt = 0; ; attempt++) {
     if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
@@ -3009,16 +3039,18 @@ async function geminiCall(body, { signal, timeoutMs = 150000, retries = 2, model
     finally { clearTimeout(timer); if (signal) signal.removeEventListener('abort', onAbort); }
     if (netErr) {
       if (signal && signal.aborted) throw new DOMException('İptal edildi', 'AbortError');
-      if (ctrl.signal.aborted) throw new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.');
-      if (attempt < retries) { await sleep(1500 * (attempt + 1)); continue; }
-      throw new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.');
+      if (ctrl.signal.aborted) { const err = new Error('Zaman aşımı: yanıt gelmedi. Bağlantıyı kontrol edip tekrar deneyin.'); err.code = 'timeout'; throw err; }
+      if (attempt < retries) { await sleepTicking(1500 * (attempt + 1), signal); continue; }
+      const err = new Error('Bağlantı kurulamadı. İnternet bağlantısını kontrol edin.'); err.code = 'network'; throw err;
     }
     let json = null; try { json = JSON.parse(text); } catch (_) { }
     if (res.ok) { if (!json) throw new Error('Sunucudan geçersiz yanıt geldi'); return json; }
-    const retryable = res.status === 408 || res.status === 429 || res.status >= 500;
+    const ra = parseFloat(res.headers.get('retry-after'));
+    // 503/5xx: kısa aralarla yeniden dene. 429: en fazla bir kez ve yalnızca kısa bekleme isteniyorsa; uzun bekleme (günlük kota) isteniyorsa hemen vazgeç ki sıradaki model denensin
+    const retryable = res.status === 408 || res.status >= 500 || (res.status === 429 && attempt < 1 && !(ra > 15));
     if (retryable && attempt < retries) {
-      const ra = parseFloat(res.headers.get('retry-after'));
-      await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra, 30) * 1000 : 3000 * (attempt + 1));
+      const wait = Number.isFinite(ra) && ra > 0 ? Math.min(ra, 30) * 1000 : 3000 * (attempt + 1);
+      await sleepTicking(wait, signal, left => { if (onRetry) onRetry({ model, status: res.status, attempt: attempt + 2, total: retries + 1, left }); });
       continue;
     }
     const err = new Error(geminiErrorMessage(res.status, json)); err.status = res.status; throw err;
@@ -3043,46 +3075,95 @@ function geminiParseResponse(resp) {
   if (!data || !Array.isArray(data.lines)) throw new Error('Model yanıtı beklenen biçimde değil');
   return data;
 }
+// Fişi Gemini ile okur: seçili model yoğunsa (503) ya da kotası dolduysa (429) sırayla yedek modelleri dener;
+// hepsi kota döndürdüyse ürün listesiz (çok daha küçük) istekle son bir deneme yapar, kodlar o zaman telefonda eşleştirilir.
+// status(mesaj, altyazı): bekleme ekranını günceller.
+async function geminiReadSlip(images, { signal, status = () => { } } = {}) {
+  const chain = geminiModelChain(), body = geminiRequestBody(images), tried = [];
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i], label = geminiModelLabel(model);
+    if (i) status(`Yedek model deneniyor: ${label}…`, `${tried[i - 1].label}: ${tried[i - 1].why}.`);
+    try {
+      const resp = await geminiCall(body, { signal, model, retries: i ? 1 : 2, onRetry: r => status(`${r.status === 429 ? 'Google kota sınırı döndürdü' : 'Google yoğun'}; ${r.left} sn sonra yeniden denenecek (${r.attempt}/${r.total})…`, label) });
+      return { data: geminiParseResponse(resp), model: resp.modelVersion || model, fallback: i > 0 };
+    } catch (e) {
+      if (!cloudBusy(e)) throw e;
+      tried.push({ model, label, status: e.status, why: geminiWhy(e), message: e.message });
+    }
+  }
+  if (tried.some(t => t.status === 429) && slipCatalogBlock()) {
+    status('Kota sınırı: ürün listesi gönderilmeden yeniden deneniyor…', '');
+    await sleepTicking(5000, signal);
+    try {
+      const resp = await geminiCall(geminiRequestBody(images, { catalog: false }), { signal, retries: 0 });
+      return { data: geminiParseResponse(resp), model: resp.modelVersion || chain[0], fallback: false };
+    } catch (e) {
+      if (!cloudBusy(e)) throw e;
+      tried.push({ model: chain[0], label: geminiModelLabel(chain[0]) + ' (ürün listesiz)', status: e.status, why: geminiWhy(e), message: e.message });
+    }
+  }
+  const last = tried[tried.length - 1];
+  const err = new Error('Google Gemini yanıt vermedi. Denenenler:\n' + tried.map(t => '• ' + t.label + ': ' + t.why).join('\n') + '\n\n' + last.message);
+  err.status = last.status; if (!last.status) err.code = 'timeout'; err.tried = tried; throw err;
+}
+async function slipCloudReadWith(provider, images, { signal, status }) {
+  if (provider === 'anthropic') {
+    const resp = await aiCall(slipRequestBody(images), { signal, onRetry: r => status(`Anthropic yoğun; ${r.left} sn sonra yeniden denenecek (${r.attempt}/${r.total})…`, aiModelLabel(aiModel())) });
+    return { data: slipParseResponse(resp), model: resp.model || aiModel(), fallback: false };
+  }
+  return geminiReadSlip(images, { signal, status });
+}
+// Fişi seçili servisle okur; servis yoğun, kotasız ya da ulaşılamaz ise ve yedek servis ayarlıysa onunla bir kez daha dener
+async function slipCloudRead(images, { signal, status = () => { } } = {}) {
+  const primary = cloudProvider(), backup = backupProvider();
+  try { return { ...await slipCloudReadWith(primary, images, { signal, status }), provider: primary }; }
+  catch (e) {
+    if (!backup || !cloudBusy(e)) throw e;
+    status(`Yedek servis deneniyor: ${cloudLabel(backup)}…`, `${cloudLabel(primary)} yanıt vermedi.`);
+    try { return { ...await slipCloudReadWith(backup, images, { signal, status }), provider: backup, fallback: true }; }
+    catch (e2) {
+      if (e2 && e2.name === 'AbortError') throw e2;
+      const first = e.message.startsWith(cloudLabel(primary)) ? e.message : `${cloudLabel(primary)}: ${e.message}`;
+      const err = new Error(`${first}\n\nYedek ${cloudLabel(backup)}: ${e2.message}`); err.status = e2.status; throw err;
+    }
+  }
+}
 async function runSlipCloud(files) {
   files = files.filter(f => f && f.size);
   if (!files.length) return;
   if (!cloudReady()) { toast('İnternetle okuma kapalı. Ayarlar → El yazısı fiş okuma.', 3500); return; }
   if (files.length > 6) { toast('En fazla 6 fotoğraf seçin'); return; }
   if (navigator.onLine === false) { toast('İnternet bağlantısı yok. Telefonda okumayı kullanın.', 4000); return; }
-  const provider = cloudProvider();
+  return slipCloudRun(null, files);
+}
+// images: hazırlanmış fotoğraflar ("Tekrar dene" aynılarını yeniden gönderir, yeniden çektirmez); files: ham dosyalar ("Telefonda oku" için)
+async function slipCloudRun(images, files) {
   const ctrl = new AbortController(); let done = false;
+  const backup = backupProvider();
+  const steps = ['bekleyip yeniden dener'];
+  if (cloudProvider() === 'gemini') steps.push('sonra diğer ücretsiz Gemini modellerini dener');
+  if (backup) steps.push('en son yedek ' + cloudLabel(backup) + ' servisine geçer');
   openModal({
     title: 'Fiş okunuyor…', locked: true,
-    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted">Fotoğraf ${esc(cloudLabel(provider))} servisine gönderiliyor; el yazısı yapay zekâ ile çözülüyor. Genellikle 10–40 saniye sürer.</p></div>`,
+    html: `<div class="slip-busy"><div class="spinner"></div><div id="slip-busy-msg">Fotoğraf hazırlanıyor…</div><p class="small muted" id="slip-busy-sub"></p><p class="small muted">Fotoğraf ${esc(cloudLabel())} servisine gönderiliyor; el yazısı yapay zekâ ile çözülüyor. Genellikle 10–40 saniye sürer. Servis yoğunsa uygulama ${esc(steps.join(', '))}.</p></div>`,
     buttons: [{ label: 'İptal' }], onClose: () => { if (!done) ctrl.abort(); }
   });
+  const status = (msg, sub) => { const m = $('#slip-busy-msg'), s = $('#slip-busy-sub'); if (m && msg != null) m.textContent = msg; if (s && sub != null) s.textContent = sub; };
   try {
-    const images = [];
-    for (const f of files) images.push(await prepareImage(f));
+    if (!images) { const prepared = []; for (const f of files) prepared.push(await prepareImage(f)); images = prepared; }
     if (ctrl.signal.aborted) return;
-    const el = $('#slip-busy-msg'); if (el) el.textContent = images.length > 1 ? `${images.length} fotoğraf okunuyor…` : 'Fiş okunuyor…';
-    let data, model;
-    if (provider === 'anthropic') { const resp = await aiCall(slipRequestBody(images), { signal: ctrl.signal }); data = slipParseResponse(resp); model = resp.model || aiModel(); }
-    else {
-      let resp;
-      try { resp = await geminiCall(geminiRequestBody(images), { signal: ctrl.signal }); }
-      catch (e) {
-        // kota hatası ve istekte ürün listesi varsa: listeyi çıkarıp (çok daha küçük istek) bir kez daha dene; kodlar telefonda eşleştirilir
-        if (e && e.status === 429 && slipCatalogBlock() && !ctrl.signal.aborted) {
-          if (el) el.textContent = 'Kota sınırı: ürün listesi gönderilmeden yeniden deneniyor…';
-          await sleep(5000);
-          resp = await geminiCall(geminiRequestBody(images, { catalog: false }), { signal: ctrl.signal, retries: 0 });
-        } else throw e;
-      }
-      data = geminiParseResponse(resp); model = resp.modelVersion || geminiModel();
-    }
+    status(images.length > 1 ? `${images.length} fotoğraf okunuyor…` : 'Fiş okunuyor…', '');
+    const r = await slipCloudRead(images, { signal: ctrl.signal, status });
     done = true; closeModal();
-    openSlipReview(data, slipMode, images, { engine: 'cloud', model });
-    if (!data.lines.length) toast('Fişte satır bulunamadı. Fotoğrafı kontrol edin.', 3500);
+    openSlipReview(r.data, slipMode, images, { engine: 'cloud', model: r.model + (r.fallback ? ' · yedek' : '') });
+    if (!r.data.lines.length) toast('Fişte satır bulunamadı. Fotoğrafı kontrol edin.', 3500);
   } catch (e) {
     done = true; closeModal();
     if (e && e.name === 'AbortError') { toast('İptal edildi'); return; }
-    openModal({ title: 'Fiş okunamadı', html: `<p style="white-space:pre-line">${esc(e && e.message || e)}</p><p class="small muted">"Telefonda" okuma ve "Metin yapıştır" yolları internetsiz de çalışır.</p>`, buttons: [{ label: 'Kapat' }, { label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); startSlipCapture(slipMode); } }] });
+    const buttons = [{ label: 'Kapat' }];
+    if (files.length <= 4) buttons.push({ label: '📱 Telefonda oku', onClick: c => { c(); runSlipLocal(files); } });
+    buttons.push({ label: 'Tekrar dene', cls: 'primary', onClick: c => { c(); slipCloudRun(images, files); } });
+    openModal({ title: 'Fiş okunamadı', html: `<p style="white-space:pre-line">${esc(e && e.message || e)}</p><p class="small muted">"Tekrar dene" aynı fotoğrafları yeniden gönderir; yeniden çekmeniz gerekmez. "Telefonda oku" ve "Metin yapıştır" internetsiz de çalışır.</p>`, buttons });
   }
 }
 
@@ -3091,18 +3172,29 @@ function renderAiSettings() {
   const ls = $('#set-ocrlang');
   if (!ls.options.length) ls.innerHTML = OCR_LANGS.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
   ls.value = ocrLangSetting();
-  const p = cloudProvider();
+  const p = cloudProvider(), o = otherProvider(p);
+  const fillModels = (sel, prov) => { sel.innerHTML = (prov === 'anthropic' ? AI_MODELS : GEMINI_MODELS).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join(''); sel.value = prov === 'anthropic' ? aiModel() : geminiModel(); };
   $('#set-aicloud').checked = !!S.settings.aiCloud;
   $('#set-aiprovider').value = p;
   $('#set-aikey').value = cloudKey(p);
   $('#set-aikey').placeholder = p === 'anthropic' ? 'sk-ant-…' : 'AIza…';
   $('#set-aikey-label').textContent = p === 'anthropic' ? 'Anthropic API anahtarı' : 'Gemini API anahtarı';
-  const sel = $('#set-aimodel'); const list = p === 'anthropic' ? AI_MODELS : GEMINI_MODELS;
-  sel.innerHTML = list.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('');
-  sel.value = p === 'anthropic' ? aiModel() : geminiModel();
+  fillModels($('#set-aimodel'), p);
+  // yedek servis: seçili servisin tüm modelleri yanıt vermezse diğer servis (anahtarı girilmişse) denenir
+  $('#set-aibackup').checked = !!S.settings.aiBackup;
+  $('#set-aibackup-box').hidden = !S.settings.aiBackup;
+  $('#set-backup-note').textContent = o === 'anthropic'
+    ? 'Google Gemini\'nin tüm modelleri yoğun ya da kotası dolu olduğunda fiş Anthropic Claude\'a gönderilir. Ücretlidir: console.anthropic.com\'dan anahtar alınır ve kredi yüklenir.'
+    : 'Anthropic Claude yanıt vermediğinde fiş Google Gemini\'ye gönderilir (ücretsiz anahtar: aistudio.google.com).';
+  $('#set-aikey2').value = cloudKey(o);
+  $('#set-aikey2').placeholder = o === 'anthropic' ? 'sk-ant-…' : 'AIza…';
+  $('#set-aikey2-label').textContent = o === 'anthropic' ? 'Anthropic API anahtarı (yedek)' : 'Gemini API anahtarı (yedek)';
+  fillModels($('#set-aimodel2'), o);
   $('#set-aihint').value = S.settings.aiHint || '';
   $('#set-cloud').open = !!S.settings.aiCloud;
-  $('#set-aistatus').textContent = !S.settings.aiCloud ? 'İnternetle okuma kapalı; uygulama hiçbir sunucuya bağlanmaz.' : (cloudKey(p) ? `İnternetle okuma açık (${cloudLabel(p)}), anahtar kayıtlı. Fiş menüsünde "İnternetle / Telefonda" seçimi çıkar.` : 'İnternetle okuma açık ama anahtar girilmedi; menüde çıkmaz.');
+  let st = !S.settings.aiCloud ? 'İnternetle okuma kapalı; uygulama hiçbir sunucuya bağlanmaz.' : (cloudKey(p) ? `İnternetle okuma açık (${cloudLabel(p)}), anahtar kayıtlı. Fiş menüsünde "İnternetle / Telefonda" seçimi çıkar.` : 'İnternetle okuma açık ama anahtar girilmedi; menüde çıkmaz.');
+  if (S.settings.aiCloud && S.settings.aiBackup) st += cloudKey(o) ? ` Yedek servis ${cloudLabel(o)}, anahtar kayıtlı.` : ` Yedek servis açık ama ${cloudLabel(o)} anahtarı girilmedi; yedek devreye girmez.`;
+  $('#set-aistatus').textContent = st;
 }
 $('#set-ocrlang').addEventListener('change', e => { S.settings.ocrLang = e.target.value; persist('settings').catch(showErr); });
 $('#set-aicloud').addEventListener('change', e => { S.settings.aiCloud = e.target.checked; persist('settings').catch(showErr); renderAiSettings(); });
@@ -3110,18 +3202,30 @@ $('#set-aiprovider').addEventListener('change', e => { S.settings.aiProvider = e
 $('#set-aikey').addEventListener('change', e => { const v = e.target.value.trim(); if (cloudProvider() === 'anthropic') S.settings.aiKey = v; else S.settings.geminiKey = v; persist('settings').catch(showErr); renderAiSettings(); });
 $('#set-aikey-toggle').addEventListener('click', () => { const i = $('#set-aikey'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#set-aikey-toggle').textContent = show ? 'Gizle' : 'Göster'; });
 $('#set-aimodel').addEventListener('change', e => { if (cloudProvider() === 'anthropic') S.settings.aiModel = e.target.value; else S.settings.geminiModel = e.target.value; persist('settings').catch(showErr); });
+$('#set-aibackup').addEventListener('change', e => { S.settings.aiBackup = e.target.checked; persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aikey2').addEventListener('change', e => { const v = e.target.value.trim(); if (otherProvider() === 'anthropic') S.settings.aiKey = v; else S.settings.geminiKey = v; persist('settings').catch(showErr); renderAiSettings(); });
+$('#set-aikey2-toggle').addEventListener('click', () => { const i = $('#set-aikey2'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#set-aikey2-toggle').textContent = show ? 'Gizle' : 'Göster'; });
+$('#set-aimodel2').addEventListener('change', e => { if (otherProvider() === 'anthropic') S.settings.aiModel = e.target.value; else S.settings.geminiModel = e.target.value; persist('settings').catch(showErr); });
 $('#set-aihint').addEventListener('change', e => { S.settings.aiHint = e.target.value.trim(); persist('settings').catch(showErr); });
 $('#set-aitest').addEventListener('click', async () => {
   const key = $('#set-aikey').value.trim(); if (!key) { toast('Önce API anahtarını girin'); return; }
-  const p = cloudProvider();
-  if (p === 'anthropic') { S.settings.aiKey = key; S.settings.aiModel = $('#set-aimodel').value; } else { S.settings.geminiKey = key; S.settings.geminiModel = $('#set-aimodel').value; }
+  const p = cloudProvider(), o = otherProvider(p);
+  const setKey = (prov, k, m) => { if (prov === 'anthropic') { S.settings.aiKey = k; S.settings.aiModel = m; } else { S.settings.geminiKey = k; S.settings.geminiModel = m; } };
+  setKey(p, key, $('#set-aimodel').value);
+  if (S.settings.aiBackup) setKey(o, $('#set-aikey2').value.trim(), $('#set-aimodel2').value);
   await persist('settings').catch(showErr);
   const btn = $('#set-aitest'); btn.disabled = true; const st = $('#set-aistatus'); st.textContent = 'Bağlantı deneniyor…';
+  const ping = async prov => prov === 'anthropic'
+    ? (await aiCall({ model: aiModel(), max_tokens: 256, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Sadece "TAMAM" yaz.' }] }, { retries: 0, timeoutMs: 30000 })).model || aiModel()
+    : (await geminiCall({ contents: [{ role: 'user', parts: [{ text: 'Sadece "TAMAM" yaz.' }] }], generationConfig: { maxOutputTokens: 256 } }, { retries: 0, timeoutMs: 30000 })).modelVersion || geminiModel();
   try {
-    let label;
-    if (p === 'anthropic') { const r = await aiCall({ model: aiModel(), max_tokens: 256, output_config: { effort: 'low' }, messages: [{ role: 'user', content: 'Sadece "TAMAM" yaz.' }] }, { retries: 0, timeoutMs: 30000 }); label = r.model || aiModel(); }
-    else { const r = await geminiCall({ contents: [{ role: 'user', parts: [{ text: 'Sadece "TAMAM" yaz.' }] }], generationConfig: { maxOutputTokens: 256 } }, { retries: 0, timeoutMs: 30000 }); label = r.modelVersion || geminiModel(); }
-    st.textContent = `Bağlantı başarılı (${label}).`; toast('Bağlantı başarılı');
+    let msg = `Bağlantı başarılı (${await ping(p)}).`;
+    if (backupProvider()) { // yedek servis de denenir ki anahtarı yanlışsa şimdi görülsün
+      st.textContent = msg + ' Yedek servis deneniyor…';
+      try { msg += ` Yedek ${cloudLabel(o)}: bağlantı başarılı (${await ping(o)}).`; }
+      catch (e) { msg += ` Yedek ${cloudLabel(o)}: bağlantı başarısız: ${e && e.message || e}`; }
+    }
+    st.textContent = msg; toast('Bağlantı başarılı');
   } catch (e) { st.textContent = 'Bağlantı başarısız: ' + (e && e.message || e); }
   finally { btn.disabled = false; }
 });
@@ -3154,7 +3258,7 @@ async function boot() {
 boot();
 
 /* test ve hata ayıklama için küçük bir dışa açık yüzey */
-window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, exportMikro, mikroLines, encodeCp1254, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker, stock: { status: stockStatus, movements, low: lowStockRows, tracked: trackedRows, search: searchStock, select: stockSelect, render: renderStock, xlsx: exportStockXlsx, countDialog: stockCountDialog, addDialog: stockAddDialog, reconcileDialog: stockReconcileDialog, atFromDate: stockAtFromDate, fromForMode: stockFromForMode, countsFrom, normEntry } } };
+window.SiparisApp = { version: APP_VERSION, fold, parseNum, cellStr, normBarcode, guessMapping, calcTotals, lineTotal, tableModel, search, state: S, _dev: { addProduct: (...a) => addProduct(...a), addCustom: (...a) => addCustom(...a), newList, openList, showView, buildIndex, persist, exportPdf, exportXlsx, exportMikro, mikroLines, encodeCp1254, current: () => cur, lock, onScan, closeScanner, preparedFile: () => prepared, leaveEditor, setScanMode, lookupByText, slipReview: (d, m = 'new', im = []) => openSlipReview(d, m, im, null), slipOcr: runSlipLocal, slipCloud: runSlipCloud, startSlipCapture, parseSlipText, resolveSlipLine, fuzzyCodes, codeDist, skel, preprocessForOcr, binarize, prepareImage, aiCall, slipRequestBody, slipParseResponse, geminiCall, geminiRequestBody, geminiParseResponse, toGeminiSchema, geminiReadSlip, geminiModelChain, slipCloudRead, backupProvider, cloudBusy, sleepTicking, stripFormLabels, currentSlip: () => slip, setOcrParams: async (p, init) => { ocrParamOverride = p || null; ocrInitOverride = init || null; dropOcrWorker(); }, recognizeSlipCanvas, rotateCanvas, getOcrWorker, stock: { status: stockStatus, movements, low: lowStockRows, tracked: trackedRows, search: searchStock, select: stockSelect, render: renderStock, xlsx: exportStockXlsx, countDialog: stockCountDialog, addDialog: stockAddDialog, reconcileDialog: stockReconcileDialog, atFromDate: stockAtFromDate, fromForMode: stockFromForMode, countsFrom, normEntry } } };
 })();
 </script>
 </body>
